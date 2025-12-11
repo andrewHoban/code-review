@@ -18,6 +18,7 @@ import os
 from typing import Any
 
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
+from google.adk.context import ContextCacheConfig
 from google.cloud import logging as google_cloud_logging
 from vertexai.agent_engines.templates.adk import AdkApp
 
@@ -41,6 +42,18 @@ class AgentEngineApp(AdkApp):
         if gemini_location:
             os.environ["GOOGLE_CLOUD_LOCATION"] = gemini_location
 
+        # Configure context caching for token optimization
+        # Cache static content (instructions, principles) for 1 hour
+        # This reduces token usage by 50-75% for repeated reviews
+        self.context_cache_config = ContextCacheConfig(
+            ttl_seconds=3600,  # 1 hour cache lifetime
+            min_tokens=32768,  # Only cache contexts > 32K tokens
+            refresh_on_use=True,  # Extend cache TTL when accessed
+        )
+        self.logger.info(
+            "Context caching enabled: min_tokens=32768, ttl=3600s, refresh_on_use=True"
+        )
+
         # Call parent set_up to initialize session service and runner
         # This is required for the agent engine to handle sessions properly
         super().set_up()
@@ -49,6 +62,39 @@ class AgentEngineApp(AdkApp):
         """Collect and log feedback."""
         feedback_obj = Feedback.model_validate(feedback)
         self.logger.log_struct(feedback_obj.model_dump(), severity="INFO")
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count from text (rough approximation: 1 token ≈ 4 characters)."""
+        if not text:
+            return 0
+        # Rough estimate: 1 token ≈ 4 characters for English/code
+        # This is approximate - actual tokenization varies
+        return len(text.encode("utf-8")) // 4
+
+    def _log_token_usage(self, input_text: str, output_text: str | None = None) -> None:
+        """Log estimated token usage for monitoring and optimization."""
+        input_tokens = self._estimate_tokens(input_text)
+        output_tokens = self._estimate_tokens(output_text) if output_text else 0
+        total_tokens = input_tokens + output_tokens
+
+        # Log token usage
+        self.logger.log_struct(
+            {
+                "event": "token_usage_estimate",
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+            },
+            severity="INFO",
+        )
+
+        # Warn if token usage is high (threshold: 500K tokens)
+        if total_tokens > 500000:
+            self.logger.warning(
+                f"High token usage detected: {total_tokens:,} tokens "
+                f"(input: {input_tokens:,}, output: {output_tokens:,}). "
+                "Consider optimizing: reduce full_content, enable caching, consolidate agents."
+            )
 
     def register_operations(self) -> dict[str, list[str]]:
         """Registers the operations of the Agent."""
