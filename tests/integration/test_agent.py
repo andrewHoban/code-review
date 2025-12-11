@@ -17,14 +17,14 @@
 # mypy: disable-error-code="union-attr"
 import pytest
 
-from app.agent import root_agent
+from app.agent import orchestrator_agent, root_agent
 from app.agents.python_review_pipeline import python_review_pipeline
 from app.agents.typescript_review_pipeline import typescript_review_pipeline
 
 
 def test_root_agent_has_correct_structure() -> None:
     """Test that root agent is configured correctly."""
-    assert root_agent.name == "CodeReviewOrchestrator"
+    assert root_agent.name == "CodeReviewRoot"
     assert root_agent.description is not None
     if isinstance(root_agent.description, str):
         assert len(root_agent.description) > 0
@@ -47,17 +47,17 @@ def test_agent_stream() -> None:
 
 
 def test_root_agent_has_language_detection_tool() -> None:
-    """Test that root agent has language detection tool."""
-    tool_names = [tool.name for tool in root_agent.tools]
+    """Test that orchestrator agent has language detection tool."""
+    tool_names = [tool.name for tool in orchestrator_agent.tools]
     assert any(
         "detect" in name.lower() or "language" in name.lower() for name in tool_names
     )
 
 
 def test_root_agent_has_sub_agents() -> None:
-    """Test that root agent has sub-agents for language pipelines."""
-    assert len(root_agent.sub_agents) > 0
-    sub_agent_names = [agent.name for agent in root_agent.sub_agents]
+    """Test that orchestrator agent has sub-agents for language pipelines."""
+    assert len(orchestrator_agent.sub_agents) > 0
+    sub_agent_names = [agent.name for agent in orchestrator_agent.sub_agents]
     assert any("python" in name.lower() for name in sub_agent_names)
     assert any("typescript" in name.lower() for name in sub_agent_names)
 
@@ -127,7 +127,7 @@ def test_python_pipeline_agents_have_tools() -> None:
 
 def test_agent_output_keys_are_configured() -> None:
     """Test that agents have output keys configured."""
-    assert root_agent.output_key is not None
+    assert orchestrator_agent.output_key is not None
     # Sequential agents don't have output_key attribute, which is expected
     assert not hasattr(python_review_pipeline, "output_key")
     # But sub-agents should have output keys
