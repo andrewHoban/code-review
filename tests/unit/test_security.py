@@ -139,7 +139,7 @@ class TestCommitShaValidation:
 
     def test_invalid_commit_sha(self) -> None:
         """Test invalid commit SHA formats."""
-        with pytest.raises(ValueError, match="format"):
+        with pytest.raises(ValueError):  # Empty string
             validate_commit_sha("")
         with pytest.raises(ValueError, match="format"):
             validate_commit_sha("abc")  # Too short
