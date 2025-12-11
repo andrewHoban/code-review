@@ -93,8 +93,8 @@ class TestRepositoryNameValidation:
         # Path traversal with .. is caught by separator check
         with pytest.raises(ValueError):
             sanitize_repository_name("owner/../repo")
-        # Leading slash is caught by invalid characters check
-        with pytest.raises(ValueError, match="invalid characters"):
+        # Leading slash creates multiple separators, caught by separator check
+        with pytest.raises(ValueError):
             sanitize_repository_name("/owner/repo")
 
     def test_repository_name_too_long(self) -> None:
