@@ -28,9 +28,10 @@ def test_root_agent_has_correct_structure() -> None:
     assert root_agent.description is not None
     if isinstance(root_agent.description, str):
         assert len(root_agent.description) > 0
-    assert root_agent.instruction is not None
-    if isinstance(root_agent.instruction, str):
-        assert len(root_agent.instruction) > 0
+    # SequentialAgent doesn't have instruction, check orchestrator instead
+    assert orchestrator_agent.instruction is not None
+    if isinstance(orchestrator_agent.instruction, str):
+        assert len(orchestrator_agent.instruction) > 0
 
 
 @pytest.mark.skip(
