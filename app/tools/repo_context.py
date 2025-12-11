@@ -16,11 +16,12 @@
 
 import logging
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
 logger = logging.getLogger(__name__)
+
 
 # State keys for repository context
 class RepoContextStateKeys:
@@ -31,9 +32,7 @@ class RepoContextStateKeys:
     DEPENDENCY_MAP = "dependency_map"
 
 
-def get_related_file(
-    file_path: str, tool_context: ToolContext
-) -> Dict[str, Any]:
+def get_related_file(file_path: str, tool_context: ToolContext) -> dict[str, Any]:
     """
     Retrieves a related file from the review context.
 
@@ -47,9 +46,13 @@ def get_related_file(
     logger.info(f"Tool: Retrieving related file: {file_path}")
 
     try:
-        related_files = tool_context.state.get(
-            RepoContextStateKeys.RELATED_FILES, []
-        )
+        related_files = tool_context.state.get(RepoContextStateKeys.RELATED_FILES, [])
+
+        # Validate that related_files is a list
+        if not isinstance(related_files, list):
+            raise TypeError(
+                f"Expected list for related_files, got {type(related_files).__name__}"
+            )
 
         # Search for exact match
         for file in related_files:
@@ -69,7 +72,7 @@ def get_related_file(
         }
 
     except Exception as e:
-        error_msg = f"Failed to retrieve related file: {str(e)}"
+        error_msg = f"Failed to retrieve related file: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         return {
@@ -79,9 +82,7 @@ def get_related_file(
         }
 
 
-def search_imports(
-    symbol: str, tool_context: ToolContext
-) -> Dict[str, Any]:
+def search_imports(symbol: str, tool_context: ToolContext) -> dict[str, Any]:
     """
     Searches for import statements of a symbol across review context.
 
@@ -95,9 +96,7 @@ def search_imports(
     logger.info(f"Tool: Searching for imports of symbol: {symbol}")
 
     try:
-        related_files = tool_context.state.get(
-            RepoContextStateKeys.RELATED_FILES, []
-        )
+        related_files = tool_context.state.get(RepoContextStateKeys.RELATED_FILES, [])
         changed_files = tool_context.state.get("changed_files", [])
 
         all_files = related_files + changed_files
@@ -118,8 +117,12 @@ def search_imports(
                 content = file_info.get("content", "")
                 path = file_info.get("path", "")
 
-                # Check Python imports
-                if python_pattern.search(content):
+                # Determine file type from extension
+                is_python = path.endswith((".py", ".pyi"))
+                is_typescript = path.endswith((".ts", ".tsx", ".js", ".jsx"))
+
+                # Check Python imports (only for Python files)
+                if is_python and python_pattern.search(content):
                     matches.append(
                         {
                             "file": path,
@@ -128,8 +131,8 @@ def search_imports(
                         }
                     )
 
-                # Check TypeScript imports
-                if typescript_pattern.search(content):
+                # Check TypeScript imports (only for TypeScript/JavaScript files)
+                if is_typescript and typescript_pattern.search(content):
                     matches.append(
                         {
                             "file": path,
@@ -146,7 +149,7 @@ def search_imports(
         }
 
     except Exception as e:
-        error_msg = f"Import search failed: {str(e)}"
+        error_msg = f"Import search failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         return {

@@ -42,7 +42,7 @@ jobs:
       - name: Extract review context
         id: extract
         run: |
-          python scripts/extract_review_context.py \
+          uv run python scripts/extract_review_context.py \
             --repo-path="${{ github.workspace }}" \
             --pr-number=${{ github.event.pull_request.number }} \
             --repository="${{ github.repository }}" \
@@ -56,7 +56,7 @@ jobs:
         id: review
         if: steps.extract.outcome == 'success'
         run: |
-          python scripts/call_agent.py \
+          uv run python scripts/call_agent.py \
             --payload=review_payload.json \
             --output=review_response.json \
             --project-id="${{ secrets.GCP_PROJECT_ID }}" \
@@ -67,7 +67,7 @@ jobs:
       - name: Post review comments
         if: steps.review.outcome == 'success'
         run: |
-          python scripts/post_review.py \
+          uv run python scripts/post_review.py \
             --response=review_response.json \
             --repository="${{ github.repository }}" \
             --pr-number=${{ github.event.pull_request.number }} \

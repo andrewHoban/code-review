@@ -21,7 +21,7 @@ import sys
 import time
 from typing import Any
 
-from google.cloud import aiplatform
+import vertexai
 from vertexai import agent_engines
 
 
@@ -34,10 +34,9 @@ def call_agent_with_retry(
     initial_delay: float = 1.0,
 ) -> dict[str, Any]:
     """Call agent with exponential backoff retry."""
-    aiplatform.init(project=project_id, location=location)
+    vertexai.init(project=project_id, location=location)
 
-    client = agent_engines.Client(project=project_id, location=location)
-    agent_engine_name = (
+    resource_name = (
         f"projects/{project_id}/locations/{location}/reasoningEngines/{agent_engine_id}"
     )
 
@@ -46,20 +45,27 @@ def call_agent_with_retry(
 
     for attempt in range(max_retries):
         try:
-            agent_engine = client.agent_engines.get(name=agent_engine_name)
+            # Get the deployed agent
+            agent = agent_engines.get(resource_name=resource_name)
 
-            # Query the agent
-            response = agent_engine.query(
-                message=json.dumps(payload),
-                user_id=f"pr-review-{payload.get('pr_metadata', {}).get('pr_number', 'unknown')}",
-            )
+            # Create a session for the query
+            user_id = f"pr-review-{payload.get('pr_metadata', {}).get('pr_number', 'unknown')}"
+            session = agent.create_session(user_id=user_id)
 
-            # Parse response - Agent Engine returns response in specific format
-            # The response may be in response.text or response.content
-            if hasattr(response, "text"):
+            # Query the agent with the payload as input
+            response = session.query(input=json.dumps(payload))
+
+            # Parse response - the response format may vary
+            # Try to extract text from the response
+            response_text = None
+            if isinstance(response, str):
+                response_text = response
+            elif hasattr(response, "text"):
                 response_text = response.text
             elif hasattr(response, "content"):
                 response_text = response.content
+            elif hasattr(response, "response"):
+                response_text = response.response
             else:
                 response_text = str(response)
 

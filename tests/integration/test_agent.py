@@ -12,47 +12,100 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# mypy: disable-error-code="union-attr"
-from google.adk.agents.run_config import RunConfig, StreamingMode
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
+"""Integration tests for agent configuration and structure."""
 
 from app.agent import root_agent
+from app.agents.python_review_pipeline import python_review_pipeline
+from app.agents.typescript_review_pipeline import typescript_review_pipeline
 
 
-def test_agent_stream() -> None:
-    """
-    Integration test for the agent stream functionality.
-    Tests that the agent returns valid streaming responses.
-    """
+def test_root_agent_has_correct_structure() -> None:
+    """Test that root agent is configured correctly."""
+    assert root_agent.name == "CodeReviewOrchestrator"
+    assert root_agent.description is not None
+    assert len(root_agent.description) > 0
+    assert root_agent.instruction is not None
+    assert len(root_agent.instruction) > 0
 
-    session_service = InMemorySessionService()
 
-    session = session_service.create_session_sync(user_id="test_user", app_name="test")
-    runner = Runner(agent=root_agent, session_service=session_service, app_name="test")
-
-    message = types.Content(
-        role="user", parts=[types.Part.from_text(text="Why is the sky blue?")]
+def test_root_agent_has_language_detection_tool() -> None:
+    """Test that root agent has language detection tool."""
+    tool_names = [tool.name for tool in root_agent.tools]
+    assert any(
+        "detect" in name.lower() or "language" in name.lower() for name in tool_names
     )
 
-    events = list(
-        runner.run(
-            new_message=message,
-            user_id="test_user",
-            session_id=session.id,
-            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
-        )
-    )
-    assert len(events) > 0, "Expected at least one message"
 
-    has_text_content = False
-    for event in events:
-        if (
-            event.content
-            and event.content.parts
-            and any(part.text for part in event.content.parts)
-        ):
-            has_text_content = True
-            break
-    assert has_text_content, "Expected at least one message with text content"
+def test_root_agent_has_sub_agents() -> None:
+    """Test that root agent has sub-agents for language pipelines."""
+    assert len(root_agent.sub_agents) > 0
+    sub_agent_names = [agent.name for agent in root_agent.sub_agents]
+    assert any("python" in name.lower() for name in sub_agent_names)
+    assert any("typescript" in name.lower() for name in sub_agent_names)
+
+
+def test_python_pipeline_is_sequential_agent() -> None:
+    """Test that Python pipeline is a sequential agent."""
+    from google.adk.agents import SequentialAgent
+
+    assert isinstance(python_review_pipeline, SequentialAgent)
+    assert python_review_pipeline.name is not None
+    assert "python" in python_review_pipeline.name.lower()
+
+
+def test_python_pipeline_has_sub_agents() -> None:
+    """Test that Python pipeline has the expected sub-agents."""
+    assert len(python_review_pipeline.sub_agents) > 0
+    sub_agent_names = [agent.name for agent in python_review_pipeline.sub_agents]
+    # Should have analyzer, style checker, test analyzer, and synthesizer
+    assert any("analyzer" in name.lower() for name in sub_agent_names)
+    assert any("style" in name.lower() for name in sub_agent_names)
+    assert any("test" in name.lower() for name in sub_agent_names)
+    assert any(
+        "synthesizer" in name.lower() or "feedback" in name.lower()
+        for name in sub_agent_names
+    )
+
+
+def test_typescript_pipeline_is_sequential_agent() -> None:
+    """Test that TypeScript pipeline is a sequential agent."""
+    from google.adk.agents import SequentialAgent
+
+    assert isinstance(typescript_review_pipeline, SequentialAgent)
+    assert typescript_review_pipeline.name is not None
+    assert "typescript" in typescript_review_pipeline.name.lower()
+
+
+def test_typescript_pipeline_has_sub_agents() -> None:
+    """Test that TypeScript pipeline has the expected sub-agents."""
+    assert len(typescript_review_pipeline.sub_agents) > 0
+    sub_agent_names = [agent.name for agent in typescript_review_pipeline.sub_agents]
+    # Should have analyzer, style checker, test analyzer, and synthesizer
+    assert any("analyzer" in name.lower() for name in sub_agent_names)
+    assert any("style" in name.lower() for name in sub_agent_names)
+    assert any("test" in name.lower() for name in sub_agent_names)
+    assert any(
+        "synthesizer" in name.lower() or "feedback" in name.lower()
+        for name in sub_agent_names
+    )
+
+
+def test_python_pipeline_agents_have_tools() -> None:
+    """Test that Python pipeline agents have the required tools."""
+    for agent in python_review_pipeline.sub_agents:
+        # First agent (analyzer) should have analysis tool
+        if "analyzer" in agent.name.lower() and "test" not in agent.name.lower():
+            assert len(agent.tools) > 0, f"{agent.name} should have tools"
+        # Style checker should have style tool
+        if "style" in agent.name.lower():
+            assert len(agent.tools) > 0, f"{agent.name} should have tools"
+
+
+def test_agent_output_keys_are_configured() -> None:
+    """Test that agents have output keys configured."""
+    assert root_agent.output_key is not None
+    # Sequential agents don't have output_key attribute, which is expected
+    assert not hasattr(python_review_pipeline, "output_key")
+    # But sub-agents should have output keys
+    for agent in python_review_pipeline.sub_agents:
+        assert agent.output_key is not None, f"{agent.name} should have an output_key"

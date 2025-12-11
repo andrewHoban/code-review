@@ -16,16 +16,19 @@
 
 import asyncio
 import logging
+import os
 import re
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from app.config import TYPESCRIPT_MAX_LINE_LENGTH
+
 logger = logging.getLogger(__name__)
+
 
 # State keys for TypeScript analysis
 class TypeScriptStateKeys:
@@ -41,7 +44,7 @@ class TypeScriptStateKeys:
 
 async def analyze_typescript_structure(
     code: str, tool_context: ToolContext
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyzes TypeScript code structure using pattern matching and regex.
 
@@ -76,9 +79,7 @@ async def analyze_typescript_structure(
         # Store code and analysis for other agents to access
         tool_context.state[TypeScriptStateKeys.CODE_TO_REVIEW] = code
         tool_context.state[TypeScriptStateKeys.CODE_ANALYSIS] = analysis
-        tool_context.state[TypeScriptStateKeys.CODE_LINE_COUNT] = len(
-            code.splitlines()
-        )
+        tool_context.state[TypeScriptStateKeys.CODE_LINE_COUNT] = len(code.splitlines())
 
         logger.info(
             f"Tool: Analysis complete - {analysis['metrics']['function_count']} "
@@ -94,7 +95,7 @@ async def analyze_typescript_structure(
         }
 
     except Exception as e:
-        error_msg = f"TypeScript analysis failed: {str(e)}"
+        error_msg = f"TypeScript analysis failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         return {
@@ -103,7 +104,7 @@ async def analyze_typescript_structure(
         }
 
 
-def _extract_typescript_structure(code: str) -> Dict[str, Any]:
+def _extract_typescript_structure(code: str) -> dict[str, Any]:
     """
     Extract structural information from TypeScript code using regex patterns.
     This is a simplified parser - full AST parsing would require TypeScript compiler.
@@ -118,7 +119,7 @@ def _extract_typescript_structure(code: str) -> Dict[str, Any]:
 
     # Pattern for function declarations
     function_pattern = re.compile(
-        r"(?:export\s+)?(?:async\s+)?(?:function\s+)?(\w+)\s*[=:]?\s*(?:async\s+)?\([^)]*\)\s*[:=]?\s*(?:Promise<.*?>)?\s*\{",
+        r"(?:export\s+)?(?:async\s+)?(?:function\s+)?(\w+)\s*[=:]?\s*(?:async\s+)?\([^)]*\)\s*(?::\s*[^{]*)?\s*\{",
         re.MULTILINE,
     )
 
@@ -199,7 +200,7 @@ def _extract_typescript_structure(code: str) -> Dict[str, Any]:
 
 async def check_typescript_style(
     code: str, tool_context: ToolContext
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Checks TypeScript code style using ESLint (if available) or pattern matching.
 
@@ -251,7 +252,7 @@ async def check_typescript_style(
         return result
 
     except Exception as e:
-        error_msg = f"TypeScript style check failed: {str(e)}"
+        error_msg = f"TypeScript style check failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         tool_context.state[TypeScriptStateKeys.STYLE_SCORE] = 0
@@ -264,13 +265,13 @@ async def check_typescript_style(
         }
 
 
-def _perform_typescript_style_check_eslint(code: str) -> Dict[str, Any]:
+def _perform_typescript_style_check_eslint(code: str) -> dict[str, Any]:
     """Perform style check using ESLint if available."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".ts", delete=False
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".ts", delete=False) as tmp:
         tmp.write(code)
         tmp_path = tmp.name
+        # Set restrictive permissions (read/write for owner only)
+        os.chmod(tmp_path, 0o600)
 
     try:
         # Try to run ESLint
@@ -325,13 +326,11 @@ def _perform_typescript_style_check_eslint(code: str) -> Dict[str, Any]:
         # ESLint not available or timed out
         return _perform_typescript_style_check_patterns(code)
     finally:
-        import os
-
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
 
-def _perform_typescript_style_check_patterns(code: str) -> Dict[str, Any]:
+def _perform_typescript_style_check_patterns(code: str) -> dict[str, Any]:
     """Perform basic style checking using pattern matching."""
     issues = []
     lines = code.split("\n")
@@ -349,14 +348,14 @@ def _perform_typescript_style_check_patterns(code: str) -> Dict[str, Any]:
                 }
             )
 
-        # Line too long (over 120 chars)
-        if len(line) > 120:
+        # Line too long
+        if len(line) > TYPESCRIPT_MAX_LINE_LENGTH:
             issues.append(
                 {
                     "line": i,
-                    "column": 120,
+                    "column": TYPESCRIPT_MAX_LINE_LENGTH,
                     "code": "E501",
-                    "message": "line too long (over 120 characters)",
+                    "message": f"line too long (over {TYPESCRIPT_MAX_LINE_LENGTH} characters)",
                 }
             )
 
@@ -391,7 +390,7 @@ def _perform_typescript_style_check_patterns(code: str) -> Dict[str, Any]:
     }
 
 
-def _calculate_typescript_style_score(issues: List[Dict[str, Any]]) -> int:
+def _calculate_typescript_style_score(issues: list[dict[str, Any]]) -> int:
     """Calculate weighted style score based on violation severity."""
     if not issues:
         return 100

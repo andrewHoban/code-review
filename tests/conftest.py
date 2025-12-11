@@ -14,15 +14,15 @@
 
 """Pytest configuration and shared fixtures."""
 
-import pytest
+from typing import Any
 
 # Markers for test categorization
-pytest_plugins = []
+pytest_plugins: list[str] = []
 
 
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     """Register custom markers."""
     config.addinivalue_line("markers", "unit: Unit tests")
     config.addinivalue_line("markers", "integration: Integration tests")
-    config.addinivalue_line("markers", "e2e: End-to-end tests")
+    config.addinivalue_line("markers", "e2e: End-to-end tests that make real API calls")
     config.addinivalue_line("markers", "slow: Slow tests that may take >5 seconds")

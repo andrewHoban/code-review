@@ -17,7 +17,6 @@ import logging
 import os
 from typing import Any
 
-import vertexai
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.cloud import logging as google_cloud_logging
 from vertexai.agent_engines.templates.adk import AdkApp
@@ -37,13 +36,14 @@ class AgentEngineApp(AdkApp):
         logging.basicConfig(level=logging.INFO)
         logging_client = google_cloud_logging.Client()
         self.logger = logging_client.logger(__name__)
-        
+
         # Set location if provided
         if gemini_location:
             os.environ["GOOGLE_CLOUD_LOCATION"] = gemini_location
-        
-        # Don't call super().set_up() to avoid Resource Manager API call
-        # The ADK app will initialize vertexai automatically when needed
+
+        # Call parent set_up to initialize session service and runner
+        # This is required for the agent engine to handle sessions properly
+        super().set_up()
 
     def register_feedback(self, feedback: dict[str, Any]) -> None:
         """Collect and log feedback."""
@@ -53,7 +53,7 @@ class AgentEngineApp(AdkApp):
     def register_operations(self) -> dict[str, list[str]]:
         """Registers the operations of the Agent."""
         operations = super().register_operations()
-        operations[""] = operations.get("", []) + ["register_feedback"]
+        operations[""] = [*operations.get("", []), "register_feedback"]
         return operations
 
 
