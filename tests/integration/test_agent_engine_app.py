@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# mypy: disable-error-code="arg-type"
-
-import logging
+"""Integration tests for AgentEngineApp configuration and feedback handling."""
 
 import pytest
-from google.adk.events.event import Event
 
 from app.agent_engine_app import AgentEngineApp
 
@@ -31,16 +28,67 @@ def agent_app() -> AgentEngineApp:
     return agent_engine
 
 
+def test_agent_feedback_valid_input(agent_app: AgentEngineApp) -> None:
+    """
+    Integration test for the agent feedback functionality.
+    Tests that feedback can be registered successfully.
+    """
+    feedback_data = {
+        "score": 5,
+        "text": "Great response!",
+        "user_id": "test-user-456",
+        "session_id": "test-session-456",
+    }
+
+    # Should not raise any exceptions
+    agent_app.register_feedback(feedback_data)
+
+
+def test_agent_feedback_invalid_score(agent_app: AgentEngineApp) -> None:
+    """Test that invalid feedback score raises ValueError."""
+    with pytest.raises(ValueError):
+        invalid_feedback = {
+            "score": "invalid",  # Score must be numeric
+            "text": "Bad feedback",
+            "user_id": "test-user-789",
+            "session_id": "test-session-789",
+        }
+        agent_app.register_feedback(invalid_feedback)
+
+
+def test_agent_feedback_missing_fields(agent_app: AgentEngineApp) -> None:
+    """Test that missing required fields are handled."""
+    # Missing score
+    with pytest.raises((ValueError, KeyError, TypeError)):
+        agent_app.register_feedback(
+            {
+                "text": "Feedback without score",
+                "user_id": "test-user",
+                "session_id": "test-session",
+            }
+        )
+
+
+def test_agent_app_has_root_agent(agent_app: AgentEngineApp) -> None:
+    """Test that AgentEngineApp has a root agent configured."""
+    assert agent_app.root_agent is not None
+    assert agent_app.root_agent.name is not None
+
+
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="Requires Agent Engine deployment with session service configured")
+@pytest.mark.skip(
+    reason="Requires Agent Engine deployment with session service configured"
+)
 async def test_agent_stream_query(agent_app: AgentEngineApp) -> None:
     """
-    Integration test for the agent stream query functionality.
+    E2E test for the agent stream query functionality.
     Tests that the agent returns valid streaming responses.
-    
+
     Note: This test requires Agent Engine deployment with proper session service.
     Run this test only in deployed environments.
     """
+    from google.adk.events.event import Event
+
     # Create message and events for the async_stream_query
     message = "Hi!"
     events = []
@@ -62,31 +110,3 @@ async def test_agent_stream_query(agent_app: AgentEngineApp) -> None:
             break
 
     assert has_text_content, "Expected at least one event with text content"
-
-
-def test_agent_feedback(agent_app: AgentEngineApp) -> None:
-    """
-    Integration test for the agent feedback functionality.
-    Tests that feedback can be registered successfully.
-    """
-    feedback_data = {
-        "score": 5,
-        "text": "Great response!",
-        "user_id": "test-user-456",
-        "session_id": "test-session-456",
-    }
-
-    # Should not raise any exceptions
-    agent_app.register_feedback(feedback_data)
-
-    # Test invalid feedback
-    with pytest.raises(ValueError):
-        invalid_feedback = {
-            "score": "invalid",  # Score must be numeric
-            "text": "Bad feedback",
-            "user_id": "test-user-789",
-            "session_id": "test-session-789",
-        }
-        agent_app.register_feedback(invalid_feedback)
-
-    logging.info("All assertions passed for agent feedback test")
