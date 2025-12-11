@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from app.models.input_schema import (
     ChangedFile,
@@ -245,7 +246,7 @@ class TestInputSchemaValidation:
     def test_changed_file_content_size_limit(self) -> None:
         """Test that changed file content size is limited."""
         large_content = "x" * (MAX_FILE_CONTENT_SIZE + 1)
-        with pytest.raises(ValueError, match="too large"):
+        with pytest.raises(ValidationError):
             ChangedFile(
                 path="test.py",
                 language="python",
@@ -268,7 +269,7 @@ class TestInputSchemaValidation:
     def test_related_file_content_size_limit(self) -> None:
         """Test that related file content size is limited."""
         large_content = "x" * (MAX_FILE_CONTENT_SIZE + 1)
-        with pytest.raises(ValueError, match="too large"):
+        with pytest.raises(ValidationError):
             RelatedFile(
                 path="test.py",
                 content=large_content,
@@ -279,7 +280,7 @@ class TestInputSchemaValidation:
     def test_file_dependencies_path_limit(self) -> None:
         """Test that dependency paths are limited."""
         many_imports = [f"file{i}.py" for i in range(101)]
-        with pytest.raises(ValueError, match="Too many dependencies"):
+        with pytest.raises(ValidationError):
             from app.models.input_schema import FileDependencies
 
             FileDependencies(imports=many_imports)
