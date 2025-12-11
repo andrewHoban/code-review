@@ -1,0 +1,176 @@
+---
+alwaysApply: false
+---
+---
+description: Pre-deployment validation rules. Apply when preparing to deploy or push code.
+---
+# Deployment & Testing Rules
+
+## Testing Strategy
+
+### Local Development Testing (Pre-Push)
+Run these tests before pushing any code:
+
+1. **Unit Tests** (must pass):
+   ```bash
+   pytest tests/unit -v
+   ```
+   - Fast execution (<5s total)
+   - Mock all external dependencies
+   - Test individual tools and functions
+
+2. **Integration Tests** (must pass):
+   ```bash
+   pytest tests/integration -v
+   ```
+   - Test agent pipelines and orchestration
+   - Moderate execution (<30s total)
+   - Use synthetic test data
+
+3. **Pre-Deployment Validation** (must pass):
+   ```bash
+   make test-deploy
+   ```
+   - Validates Python syntax
+   - Tests imports
+   - Checks requirements generation
+
+### CI/CD Pipeline Testing
+The CI pipeline runs additional tests:
+
+1. **E2E Tests** (only in CI):
+   ```bash
+   pytest tests/e2e -v
+   ```
+   - Full PR review flows with real model calls
+   - Can be slow (30-60s per test)
+   - Tests complete system behavior
+
+2. **Code Quality Checks**:
+   - Ruff linting and formatting
+   - MyPy type checking
+   - Codespell for typos
+   - Coverage reports
+
+## Pre-Push Validation
+
+A git pre-push hook automatically runs when you execute `git push`. It will:
+1. Run all unit tests
+2. Run all integration tests
+3. Run pre-deployment validation (make test-deploy)
+
+**If any test fails, the push is cancelled.**
+
+To bypass the hook in emergencies (not recommended):
+```bash
+git push --no-verify
+```
+
+## Pre-Commit Validation
+
+Pre-commit hooks run automatically on `git commit` and will:
+- Auto-fix code formatting with Ruff
+- Check for trailing whitespace
+- Validate YAML files
+- Run type checking with MyPy
+- Check for spelling errors
+
+**If auto-fixes are applied, you need to re-stage and re-commit.**
+
+To bypass pre-commit hooks (not recommended):
+```bash
+git commit --no-verify
+```
+
+## Deployment Process
+
+### Automatic Deployment
+Pushes to `main` branch automatically trigger deployment to Agent Engine via GitHub Actions.
+
+**Required validations before merge to main:**
+1. PR must have passing CI tests
+2. Code review approval (if branch protection is enabled)
+3. Branch must be up to date with main
+
+### Manual Deployment
+For testing or one-off deployments:
+
+```bash
+# Validate first
+make test-deploy
+
+# Deploy
+make deploy
+```
+
+## Adding New Tests
+
+### When to Add Unit Tests
+- New tool functions
+- New utility functions
+- New data models/schemas
+- Edge case handling
+
+### When to Add Integration Tests
+- New agent pipelines
+- Changes to agent orchestration
+- State management changes
+- Multi-agent coordination
+
+### When to Add E2E Tests
+- New end-to-end workflows
+- Critical user scenarios
+- Multi-language handling
+
+## Test Coverage Requirements
+
+- **Overall**: 80% code coverage minimum
+- **Tools**: 90% coverage (critical business logic)
+- **Agents**: 70% coverage (tested via integration)
+- **Models/Schemas**: 100% coverage
+
+Check coverage:
+```bash
+pytest --cov=app --cov-report=html --cov-report=term
+open htmlcov/index.html
+```
+
+## Troubleshooting
+
+### Pre-push hook fails but tests pass locally
+- Ensure you've run `make install` to install all dependencies
+- Check that your virtual environment is activated
+- Try running the exact test command from the hook
+
+### Deployment fails in CI
+- Check GitHub Actions logs for specific errors
+- Verify GCP secrets are set correctly: `gh secret list`
+- Ensure Workload Identity Federation is configured
+- Check Agent Engine logs in GCP Console
+
+### Pre-commit hook changes my code
+- This is expected behavior (auto-formatting)
+- Review the changes, stage them, and commit again
+- The hook ensures consistent code style
+
+## Quick Reference Commands
+
+```bash
+# Full local validation (what pre-push runs)
+pytest tests/unit tests/integration && make test-deploy
+
+# Run only fast tests
+pytest tests/unit tests/integration -m "not slow"
+
+# Run specific test file
+pytest tests/unit/test_python_tools.py -v
+
+# Update all pre-commit hooks
+pre-commit autoupdate
+
+# Run pre-commit hooks manually
+pre-commit run --all-files
+
+# Deploy manually
+make deploy
+```

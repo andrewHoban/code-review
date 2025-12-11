@@ -146,11 +146,48 @@ pytest --cov=app --cov-report=html
 
 ## Deployment
 
-Deploy to Agent Engine:
+### Automated Deployment
+
+Pushes to the `main` branch automatically deploy to Agent Engine via GitHub Actions.
+
+**Prerequisites:**
+- GCP Workload Identity Federation configured
+- GitHub repository secrets set (GCP_PROJECT_ID, GCP_PROJECT_NUMBER, GCP_REGION)
+
+**Deployment Process:**
+1. Create feature branch: `git checkout -b feature/my-feature`
+2. Make changes and commit
+3. Push and create PR: `git push -u origin feature/my-feature`
+4. Wait for CI tests to pass
+5. Merge PR to `main`
+6. GitHub Actions automatically deploys to Agent Engine
+
+### Manual Deployment
+
+For testing or one-off deployments:
 
 ```bash
+# Validate before deploying
+make test-deploy
+
+# Deploy to Agent Engine
 make deploy
 ```
+
+### Pre-Deployment Validation
+
+Before pushing code, git hooks automatically run:
+- Unit tests (tests/unit)
+- Integration tests (tests/integration)
+- Pre-deployment checks (make test-deploy)
+
+**To run manually:**
+```bash
+pytest tests/unit tests/integration -v
+make test-deploy
+```
+
+See [.cursor/rules/deployment.mdc](.cursor/rules/deployment.mdc) for complete deployment guidelines.
 
 ## Documentation
 
