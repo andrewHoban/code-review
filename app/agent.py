@@ -45,6 +45,7 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
 
 # Root orchestrator agent that detects languages and routes to pipelines
+# TODO: Consider adding support for additional languages in the future
 root_agent = Agent(
     name="CodeReviewOrchestrator",
     model=LANGUAGE_DETECTOR_MODEL,
@@ -95,8 +96,6 @@ Provide a comprehensive review that includes:
     sub_agents=[python_review_pipeline, typescript_review_pipeline],
     output_key="code_review_output",
 )
-
-
 
 
 app = App(root_agent=root_agent, name="app")
