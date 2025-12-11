@@ -17,11 +17,12 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
 logger = logging.getLogger(__name__)
+
 
 # State keys for language detection
 class LanguageStateKeys:
@@ -32,8 +33,8 @@ class LanguageStateKeys:
 
 
 def detect_languages(
-    changed_files: List[Dict[str, Any]], tool_context: ToolContext
-) -> Dict[str, Any]:
+    changed_files: list[dict[str, Any]], tool_context: ToolContext
+) -> dict[str, Any]:
     """
     Analyzes file extensions and content to determine programming languages.
 
@@ -82,7 +83,7 @@ def detect_languages(
                 logger.warning(f"Unknown file type: {file_path}")
 
         # Store in state
-        result_dict = {lang: files for lang, files in languages.items()}
+        result_dict = dict(languages.items())
         tool_context.state[LanguageStateKeys.DETECTED_LANGUAGES] = result_dict
         tool_context.state[LanguageStateKeys.LANGUAGE_FILES] = result_dict
 
@@ -99,7 +100,7 @@ def detect_languages(
         }
 
     except Exception as e:
-        error_msg = f"Language detection failed: {str(e)}"
+        error_msg = f"Language detection failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         return {

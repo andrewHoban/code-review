@@ -14,9 +14,8 @@
 
 """Output formatting tools for code review results."""
 
-import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
@@ -31,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 def format_review_output(
     summary: str,
-    issues: List[Dict[str, Any]],
+    issues: list[dict[str, Any]],
     tool_context: ToolContext,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Formats raw analysis into structured PR review format.
 
@@ -119,7 +118,7 @@ def format_review_output(
         }
 
     except Exception as e:
-        error_msg = f"Output formatting failed: {str(e)}"
+        error_msg = f"Output formatting failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         return {

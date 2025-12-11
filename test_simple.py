@@ -17,7 +17,7 @@ try:
         agent.stream_query(message="Hello, can you hear me?", user_id="test-user")
     ):
         chunks.append(chunk)
-        print(f"Chunk {i+1}: {type(chunk)}")
+        print(f"Chunk {i + 1}: {type(chunk)}")
         if hasattr(chunk, "text"):
             print(f"  Text: {chunk.text[:200]}")
         else:

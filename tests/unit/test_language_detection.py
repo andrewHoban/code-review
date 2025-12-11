@@ -14,13 +14,12 @@
 
 """Unit tests for language detection."""
 
-import pytest
 from unittest.mock import MagicMock
 
 from app.tools.language_detection import detect_languages
 
 
-def test_detect_languages_python():
+def test_detect_languages_python() -> None:
     """Test detection of Python files."""
     changed_files = [
         {"path": "src/main.py", "status": "modified"},
@@ -37,7 +36,7 @@ def test_detect_languages_python():
     assert len(result["language_files"]["python"]) == 2
 
 
-def test_detect_languages_typescript():
+def test_detect_languages_typescript() -> None:
     """Test detection of TypeScript files."""
     changed_files = [
         {"path": "src/index.ts", "status": "modified"},
@@ -54,7 +53,7 @@ def test_detect_languages_typescript():
     assert len(result["language_files"]["typescript"]) == 2
 
 
-def test_detect_languages_mixed():
+def test_detect_languages_mixed() -> None:
     """Test detection of mixed language files."""
     changed_files = [
         {"path": "src/main.py", "status": "modified"},
@@ -72,7 +71,7 @@ def test_detect_languages_mixed():
     assert len(result["languages"]) == 2
 
 
-def test_detect_languages_unknown():
+def test_detect_languages_unknown() -> None:
     """Test handling of unknown file types."""
     changed_files = [
         {"path": "README.md", "status": "modified"},

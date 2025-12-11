@@ -72,25 +72,32 @@ def call_agent_with_retry(
                 None
             ]  # Use list to allow modification from nested scope
 
-            def stream_worker() -> None:  # noqa: B023
+            def stream_worker() -> None:
                 """Worker thread to handle streaming with timeout detection."""
-                nonlocal response_chunks, chunk_count, last_chunk_time, stream_error, agent, message_payload, stream_start_time
+                nonlocal \
+                    response_chunks, \
+                    chunk_count, \
+                    last_chunk_time, \
+                    stream_error, \
+                    agent, \
+                    message_payload, \
+                    stream_start_time
                 try:
                     print("  Invoking agent.stream_query()...")
-                    stream_iterator = agent.stream_query(
-                        message=message_payload,
+                    stream_iterator = agent.stream_query(  # noqa: B023
+                        message=message_payload,  # noqa: B023
                         user_id="github-actions-pr-review",
                     )
                     print("  Stream iterator created, starting iteration...")
 
                     for chunk in stream_iterator:
-                        chunk_count[0] += 1
-                        last_chunk_time[0] = time.time()
-                        response_chunks.append(chunk)
+                        chunk_count[0] += 1  # noqa: B023
+                        last_chunk_time[0] = time.time()  # noqa: B023
+                        response_chunks.append(chunk)  # noqa: B023
 
                         # Log progress every 10 chunks or if we can extract text
-                        if chunk_count[0] % 10 == 0 or chunk_count[0] == 1:
-                            elapsed = time.time() - stream_start_time
+                        if chunk_count[0] % 10 == 0 or chunk_count[0] == 1:  # noqa: B023
+                            elapsed = time.time() - stream_start_time  # noqa: B023
                             chunk_info = "chunk"
                             if hasattr(chunk, "text") and chunk.text:
                                 preview = chunk.text[:100].replace("\n", " ")
@@ -99,15 +106,15 @@ def call_agent_with_retry(
                                 preview = chunk[:100].replace("\n", " ")
                                 chunk_info = f"chunk (str): {preview}..."
                             print(
-                                f"  Received {chunk_count[0]} chunks (elapsed: {elapsed:.1f}s) - latest: {chunk_info}"
+                                f"  Received {chunk_count[0]} chunks (elapsed: {elapsed:.1f}s) - latest: {chunk_info}"  # noqa: B023
                             )
 
                     print("  Stream iteration completed normally.")
                 except Exception as e:
                     print(f"  Error in stream worker: {type(e).__name__}: {e}")
-                    stream_error[0] = e
+                    stream_error[0] = e  # noqa: B023
                 finally:
-                    streaming_complete.set()
+                    streaming_complete.set()  # noqa: B023
 
             # Start streaming in a thread so we can monitor for timeouts
             stream_thread = threading.Thread(target=stream_worker, daemon=True)
@@ -166,7 +173,7 @@ def call_agent_with_retry(
             all_text_parts = []
             all_state_deltas = {}  # Accumulate all state deltas
 
-            for i, chunk in enumerate(response_chunks):
+            for _i, chunk in enumerate(response_chunks):
                 # Collect text from content
                 if hasattr(chunk, "content") and chunk.content:
                     if hasattr(chunk.content, "parts") and chunk.content.parts:
@@ -198,9 +205,9 @@ def call_agent_with_retry(
             else:
                 # Look for any output-like key
                 for key in all_state_deltas:
-                    if ("output" in key.lower() or "review" in key.lower()) and isinstance(
-                        all_state_deltas[key], (dict, list)
-                    ):
+                    if (
+                        "output" in key.lower() or "review" in key.lower()
+                    ) and isinstance(all_state_deltas[key], dict | list):
                         structured_output = all_state_deltas[key]
                         print(f"Found structured output in state key: {key}")
                         break
@@ -209,11 +216,16 @@ def call_agent_with_retry(
             if structured_output:
                 if isinstance(structured_output, dict):
                     # Validate it has expected structure
-                    if "overall_status" in structured_output or "summary" in structured_output:
+                    if (
+                        "overall_status" in structured_output
+                        or "summary" in structured_output
+                    ):
                         print("Using structured output from state")
                         return structured_output
                     else:
-                        print(f"Structured output missing expected fields: {list(structured_output.keys())}")
+                        print(
+                            f"Structured output missing expected fields: {list(structured_output.keys())}"
+                        )
                 elif isinstance(structured_output, str):
                     try:
                         parsed = json.loads(structured_output)

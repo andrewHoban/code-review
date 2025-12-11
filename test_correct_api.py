@@ -44,7 +44,7 @@ try:
         )
     ):
         response_chunks.append(chunk)
-        print(f"Received chunk {i+1}: {type(chunk)}")
+        print(f"Received chunk {i + 1}: {type(chunk)}")
         if i == 0:
             # Show first chunk details
             print(f"  First chunk sample: {str(chunk)[:200]}...")

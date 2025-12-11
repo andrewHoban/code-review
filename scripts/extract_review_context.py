@@ -601,7 +601,7 @@ def extract_review_context(
                 file_path = parts[1]
                 if status.startswith("R"):
                     # Renamed file - get both old and new paths
-                    old_path, new_path = file_path.split("\t")
+                    _old_path, new_path = file_path.split("\t")
                     changed_paths.append((new_path, status))
                 else:
                     changed_paths.append((file_path, status))

@@ -282,7 +282,7 @@ async def test_python_tools_state_flow() -> None:
 
 def test_input_preparation_handles_invalid_json() -> None:
     """Test that input preparation handles invalid JSON gracefully."""
-    with pytest.raises(ValueError, match="Invalid JSON|No JSON"):
+    with pytest.raises(ValueError, match=r"Invalid JSON|No JSON"):
         parse_review_input("not json at all")
 
 
