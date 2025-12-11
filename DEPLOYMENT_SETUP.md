@@ -117,11 +117,17 @@ gcloud iam workload-identity-pools describe github-actions-pool \
 gcloud iam service-accounts list --project=bpc-askgreg-nonprod | grep github-actions
 ```
 
+## ✅ Required APIs Enabled
+
+The following Google Cloud APIs have been enabled:
+- **IAM Service Account Credentials API** (`iamcredentials.googleapis.com`) - Required for Workload Identity Federation
+- **Cloud Resource Manager API** (`cloudresourcemanager.googleapis.com`) - Required for project resource management
+- **Vertex AI API** (`aiplatform.googleapis.com`) - Required for Agent Engine deployment
+
 ## Next Steps
 
-1. **Create Workload Identity Provider** (see above)
-2. **Enable Cloud Resource Manager API** (if not already enabled)
-   - URL: https://console.developers.google.com/apis/api/cloudresourcemanager.googleapis.com/overview?project=bpc-askgreg-nonprod
+1. **Create Workload Identity Provider** (see above) - ✅ **COMPLETED** (if you've already done this)
+2. ~~**Enable Required APIs**~~ - ✅ **COMPLETED**
 3. **Test deployment workflow** by pushing to main
 4. **Monitor first deployment** in GitHub Actions and GCP Console
 

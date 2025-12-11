@@ -103,6 +103,34 @@ make test-deploy
 make deploy
 ```
 
+## Prerequisites & Required APIs
+
+Before deploying, ensure the following Google Cloud APIs are enabled in your project:
+
+1. **IAM Service Account Credentials API** (`iamcredentials.googleapis.com`)
+   - Required for Workload Identity Federation
+   - Enables service account impersonation
+
+2. **Cloud Resource Manager API** (`cloudresourcemanager.googleapis.com`)
+   - Required for project resource management
+   - Needed for IAM operations
+
+3. **Vertex AI API** (`aiplatform.googleapis.com`)
+   - Required for Agent Engine deployment
+   - Enables Vertex AI services
+
+**Enable APIs:**
+```bash
+gcloud services enable iamcredentials.googleapis.com --project=YOUR_PROJECT_ID
+gcloud services enable cloudresourcemanager.googleapis.com --project=YOUR_PROJECT_ID
+gcloud services enable aiplatform.googleapis.com --project=YOUR_PROJECT_ID
+```
+
+**Check enabled APIs:**
+```bash
+gcloud services list --enabled --project=YOUR_PROJECT_ID | grep -E "(iamcredentials|cloudresourcemanager|aiplatform)"
+```
+
 ## Adding New Tests
 
 ### When to Add Unit Tests
@@ -146,7 +174,9 @@ open htmlcov/index.html
 - Check GitHub Actions logs for specific errors
 - Verify GCP secrets are set correctly: `gh secret list`
 - Ensure Workload Identity Federation is configured
+- Verify required APIs are enabled (see Prerequisites section)
 - Check Agent Engine logs in GCP Console
+- Common error: "IAM Service Account Credentials API has not been used" → Enable `iamcredentials.googleapis.com`
 
 ### Pre-commit hook changes my code
 - This is expected behavior (auto-formatting)
