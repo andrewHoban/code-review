@@ -14,99 +14,201 @@
 
 """Input schema models for code review agent."""
 
-from typing import Dict, List, Optional
+from pydantic import BaseModel, Field, field_validator
 
-from pydantic import BaseModel, Field
+from app.utils.security import (
+    MAX_FILE_CONTENT_SIZE,
+    sanitize_branch_name,
+    sanitize_repository_name,
+    validate_commit_sha,
+    validate_content_size,
+)
 
 
 class PullRequestMetadata(BaseModel):
     """Metadata about the pull request being reviewed."""
 
-    pr_number: int = Field(..., description="Pull request number")
-    repository: str = Field(..., description="Repository full name (owner/repo)")
-    title: str = Field(..., description="PR title")
-    description: str = Field(default="", description="PR description")
-    author: str = Field(..., description="PR author username")
-    base_branch: str = Field(..., description="Base branch name")
-    head_branch: str = Field(..., description="Head branch name")
-    base_sha: Optional[str] = Field(None, description="Base commit SHA")
-    head_sha: Optional[str] = Field(None, description="Head commit SHA")
+    pr_number: int = Field(..., gt=0, lt=1000000, description="Pull request number")
+    repository: str = Field(
+        ..., max_length=200, description="Repository full name (owner/repo)"
+    )
+    title: str = Field(..., max_length=500, description="PR title")
+    description: str = Field(default="", max_length=10000, description="PR description")
+    author: str = Field(..., max_length=100, description="PR author username")
+    base_branch: str = Field(..., max_length=200, description="Base branch name")
+    head_branch: str = Field(..., max_length=200, description="Head branch name")
+    base_sha: str | None = Field(None, description="Base commit SHA")
+    head_sha: str | None = Field(None, description="Head commit SHA")
+
+    @field_validator("repository")
+    @classmethod
+    def validate_repository(cls, v: str) -> str:
+        """Validate and sanitize repository name."""
+        return sanitize_repository_name(v)
+
+    @field_validator("base_branch", "head_branch")
+    @classmethod
+    def validate_branch(cls, v: str) -> str:
+        """Validate and sanitize branch name."""
+        return sanitize_branch_name(v)
+
+    @field_validator("base_sha", "head_sha")
+    @classmethod
+    def validate_sha(cls, v: str | None) -> str | None:
+        """Validate commit SHA format."""
+        if v is not None:
+            validate_commit_sha(v)
+        return v
 
 
 class ChangedFile(BaseModel):
     """A file that was changed in the PR."""
 
-    path: str = Field(..., description="File path relative to repo root")
-    language: str = Field(..., description="Programming language (python, typescript)")
-    status: str = Field(
-        ..., description="Change status (modified, added, deleted, renamed)"
+    path: str = Field(
+        ..., max_length=500, description="File path relative to repo root"
     )
-    additions: int = Field(default=0, description="Number of lines added")
-    deletions: int = Field(default=0, description="Number of lines deleted")
-    diff: str = Field(..., description="Unified diff patch")
-    full_content: str = Field(..., description="Complete file content after changes")
-    lines_changed: List[int] = Field(
+    language: str = Field(
+        ..., max_length=50, description="Programming language (python, typescript)"
+    )
+    status: str = Field(
+        ...,
+        max_length=20,
+        description="Change status (modified, added, deleted, renamed)",
+    )
+    additions: int = Field(default=0, ge=0, description="Number of lines added")
+    deletions: int = Field(default=0, ge=0, description="Number of lines deleted")
+    diff: str = Field(
+        ..., max_length=MAX_FILE_CONTENT_SIZE, description="Unified diff patch"
+    )
+    full_content: str = Field(
+        ...,
+        max_length=MAX_FILE_CONTENT_SIZE,
+        description="Complete file content after changes",
+    )
+    lines_changed: list[int] = Field(
         default_factory=list, description="Line numbers that were changed"
     )
+
+    @field_validator("full_content", "diff")
+    @classmethod
+    def validate_content_size(cls, v: str) -> str:
+        """Validate content size."""
+        validate_content_size(v, MAX_FILE_CONTENT_SIZE)
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate status value."""
+        valid_statuses = {"modified", "added", "deleted", "renamed"}
+        if v not in valid_statuses:
+            raise ValueError(f"Status must be one of {valid_statuses}")
+        return v
 
 
 class RelatedFile(BaseModel):
     """A file related to the changed files (imports, dependencies, etc.)."""
 
-    path: str = Field(..., description="File path relative to repo root")
-    content: str = Field(..., description="Complete file content")
+    path: str = Field(
+        ..., max_length=500, description="File path relative to repo root"
+    )
+    content: str = Field(
+        ..., max_length=MAX_FILE_CONTENT_SIZE, description="Complete file content"
+    )
     relationship: str = Field(
         ...,
+        max_length=500,
         description="How this file relates (e.g., 'imported by src/auth.ts')",
     )
-    language: str = Field(..., description="Programming language")
+    language: str = Field(..., max_length=50, description="Programming language")
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_size(cls, v: str) -> str:
+        """Validate content size."""
+        validate_content_size(v, MAX_FILE_CONTENT_SIZE)
+        return v
 
 
 class TestFile(BaseModel):
     """A test file associated with changed files."""
 
-    path: str = Field(..., description="Test file path")
-    content: str = Field(..., description="Complete test file content")
-    tests_for: str = Field(..., description="Path of file this test covers")
-    language: str = Field(..., description="Programming language")
+    path: str = Field(..., max_length=500, description="Test file path")
+    content: str = Field(
+        ..., max_length=MAX_FILE_CONTENT_SIZE, description="Complete test file content"
+    )
+    tests_for: str = Field(
+        ..., max_length=500, description="Path of file this test covers"
+    )
+    language: str = Field(..., max_length=50, description="Programming language")
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_size(cls, v: str) -> str:
+        """Validate content size."""
+        validate_content_size(v, MAX_FILE_CONTENT_SIZE)
+        return v
 
 
 class FileDependencies(BaseModel):
     """Dependency information for a file."""
 
-    imports: List[str] = Field(
-        default_factory=list, description="Files this file imports"
+    imports: list[str] = Field(
+        default_factory=list, max_length=100, description="Files this file imports"
     )
-    imported_by: List[str] = Field(
-        default_factory=list, description="Files that import this file"
+    imported_by: list[str] = Field(
+        default_factory=list, max_length=100, description="Files that import this file"
     )
+
+    @field_validator("imports", "imported_by")
+    @classmethod
+    def validate_paths(cls, v: list[str]) -> list[str]:
+        """Validate path list size and individual paths."""
+        if len(v) > 100:
+            raise ValueError("Too many dependencies (max 100)")
+        for path in v:
+            if len(path) > 500:
+                raise ValueError(f"Path too long: {path}")
+        return v
 
 
 class RepositoryInfo(BaseModel):
     """Information about the repository."""
 
-    name: str = Field(..., description="Repository name")
-    primary_language: str = Field(..., description="Primary programming language")
-    languages_used: List[str] = Field(
-        default_factory=list, description="All languages in the repository"
+    name: str = Field(..., max_length=200, description="Repository name")
+    primary_language: str = Field(
+        ..., max_length=50, description="Primary programming language"
     )
-    total_files: int = Field(default=0, description="Total number of files")
+    languages_used: list[str] = Field(
+        default_factory=list,
+        max_length=50,
+        description="All languages in the repository",
+    )
+    total_files: int = Field(default=0, ge=0, description="Total number of files")
     has_tests: bool = Field(default=False, description="Whether repository has tests")
+
+    @field_validator("languages_used")
+    @classmethod
+    def validate_languages(cls, v: list[str]) -> list[str]:
+        """Validate languages list size."""
+        if len(v) > 50:
+            raise ValueError("Too many languages (max 50)")
+        return v
 
 
 class ReviewContext(BaseModel):
     """Complete context for code review including changed files and related context."""
 
-    changed_files: List[ChangedFile] = Field(
+    changed_files: list[ChangedFile] = Field(
         ..., description="Files that were changed in the PR"
     )
-    related_files: List[RelatedFile] = Field(
+    related_files: list[RelatedFile] = Field(
         default_factory=list, description="Files related to changed files"
     )
-    test_files: List[TestFile] = Field(
+    test_files: list[TestFile] = Field(
         default_factory=list, description="Test files for changed files"
     )
-    dependency_map: Dict[str, FileDependencies] = Field(
+    dependency_map: dict[str, FileDependencies] = Field(
         default_factory=dict, description="Dependency relationships between files"
     )
     repository_info: RepositoryInfo = Field(

@@ -20,6 +20,11 @@ from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from app.utils.security import (
+    MAX_SYMBOL_LENGTH,
+    sanitize_symbol_for_regex,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,20 +101,26 @@ def search_imports(symbol: str, tool_context: ToolContext) -> dict[str, Any]:
     logger.info(f"Tool: Searching for imports of symbol: {symbol}")
 
     try:
+        # Validate and sanitize symbol to prevent ReDoS
+        if len(symbol) > MAX_SYMBOL_LENGTH:
+            raise ValueError(f"Symbol too long (max {MAX_SYMBOL_LENGTH} characters)")
+        escaped_symbol = sanitize_symbol_for_regex(symbol)
+
         related_files = tool_context.state.get(RepoContextStateKeys.RELATED_FILES, [])
         changed_files = tool_context.state.get("changed_files", [])
 
         all_files = related_files + changed_files
         matches = []
 
-        # Search for import patterns
+        # Search for import patterns with sanitized symbol
         # Python: from module import symbol, import module
         # TypeScript: import { symbol } from 'module', import symbol from 'module'
         python_pattern = re.compile(
-            rf"(?:from\s+[\w.]+|import)\s+.*\b{symbol}\b", re.IGNORECASE
+            rf"(?:from\s+[\w.]+|import)\s+.*\b{escaped_symbol}\b", re.IGNORECASE
         )
         typescript_pattern = re.compile(
-            rf"import\s+(?:\{{\s*{symbol}\s*\}}|{symbol})\s+from", re.IGNORECASE
+            rf"import\s+(?:\{{\s*{escaped_symbol}\s*\}}|{escaped_symbol})\s+from",
+            re.IGNORECASE,
         )
 
         for file_info in all_files:

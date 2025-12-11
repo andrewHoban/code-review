@@ -21,7 +21,7 @@ from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.cloud import logging as google_cloud_logging
 from vertexai.agent_engines.templates.adk import AdkApp
 
-from app.agent import app as adk_app
+from app.agent import root_agent
 from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
 
@@ -41,9 +41,9 @@ class AgentEngineApp(AdkApp):
         if gemini_location:
             os.environ["GOOGLE_CLOUD_LOCATION"] = gemini_location
 
-        # NOTE: Do NOT call super().set_up() in Agent Engine apps
-        # This triggers unnecessary Resource Manager API calls that cause
-        # deployment failures. The Agent Engine handles session management internally.
+        # Call parent set_up to initialize session service and runner
+        # This is required for the agent engine to handle sessions properly
+        super().set_up()
 
     def register_feedback(self, feedback: dict[str, Any]) -> None:
         """Collect and log feedback."""
@@ -58,7 +58,7 @@ class AgentEngineApp(AdkApp):
 
 
 agent_engine = AgentEngineApp(
-    app=adk_app,
+    agent=root_agent,
     artifact_service_builder=lambda: GcsArtifactService(bucket_name=logs_bucket_name)
     if logs_bucket_name
     else InMemoryArtifactService(),

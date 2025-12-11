@@ -16,9 +16,10 @@
 
 import json
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from app.models.input_schema import CodeReviewInput
+from app.utils.security import MAX_JSON_PAYLOAD_SIZE, validate_content_size
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,9 @@ def parse_review_input(user_message: str) -> CodeReviewInput:
         ValueError: If JSON cannot be parsed or validated
     """
     try:
+        # Validate input size to prevent DoS
+        validate_content_size(user_message, MAX_JSON_PAYLOAD_SIZE)
+
         # Try to extract JSON from message (might be wrapped in markdown or text)
         # Look for JSON object
         json_start = user_message.find("{")
@@ -44,22 +48,58 @@ def parse_review_input(user_message: str) -> CodeReviewInput:
 
         if json_start >= 0 and json_end > json_start:
             json_str = user_message[json_start:json_end]
-            data = json.loads(json_str)
+
+            # Validate extracted JSON size
+            validate_content_size(json_str, MAX_JSON_PAYLOAD_SIZE)
+
+            # Parse with size limit protection
+            try:
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON: {e}")
+                raise ValueError(f"Invalid JSON format: {e}") from e
+
+            # Validate JSON structure depth to prevent stack overflow
+            _validate_json_depth(data, max_depth=20)
+
             return CodeReviewInput.model_validate(data)
         else:
             raise ValueError("No JSON object found in message")
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse JSON: {e}")
-        raise ValueError(f"Invalid JSON format: {e}")
+    except ValueError:
+        # Re-raise validation errors
+        raise
     except Exception as e:
         logger.error(f"Failed to parse review input: {e}")
-        raise
+        raise ValueError(f"Failed to parse review input: {e}") from e
+
+
+def _validate_json_depth(obj: Any, max_depth: int = 20, current_depth: int = 0) -> None:
+    """
+    Validate JSON structure depth to prevent stack overflow attacks.
+
+    Args:
+        obj: JSON object to validate
+        max_depth: Maximum allowed nesting depth
+        current_depth: Current nesting depth
+
+    Raises:
+        ValueError: If JSON structure is too deeply nested
+    """
+    if current_depth > max_depth:
+        raise ValueError(f"JSON structure too deeply nested (max {max_depth} levels)")
+
+    if isinstance(obj, dict):
+        for value in obj.values():
+            _validate_json_depth(value, max_depth, current_depth + 1)
+    elif isinstance(obj, list):
+        for item in obj:
+            _validate_json_depth(item, max_depth, current_depth + 1)
 
 
 def prepare_changed_files_for_detection(
     review_input: CodeReviewInput,
-) -> list[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Extract changed files in format needed for language detection tool.
 
@@ -76,7 +116,7 @@ def prepare_changed_files_for_detection(
 
 
 def store_review_context_in_state(
-    review_input: CodeReviewInput, state: Dict[str, Any]
+    review_input: CodeReviewInput, state: dict[str, Any]
 ) -> None:
     """
     Store review context in session state for agents to access.

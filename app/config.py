@@ -17,17 +17,20 @@
 import os
 
 # Model configuration
-# Language detection needs intelligence to handle edge cases
-LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", "gemini-3-pro-preview")
+# Note: gemini-3-pro-preview is not available in europe-west1
+# Using gemini-2.5 models which are available in this region
 
-# Code analysis requires complex reasoning - use 3.0 model
-CODE_ANALYZER_MODEL = os.getenv("CODE_ANALYZER_MODEL", "gemini-3-pro-preview")
+# Language detection needs intelligence to handle edge cases
+LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", "gemini-2.5-flash")
+
+# Code analysis requires complex reasoning - use 2.5-pro (3.0 not available in europe-west1)
+CODE_ANALYZER_MODEL = os.getenv("CODE_ANALYZER_MODEL", "gemini-2.5-pro")
 
 # Style checking is deterministic - use faster model
 STYLE_CHECKER_MODEL = os.getenv("STYLE_CHECKER_MODEL", "gemini-2.5-flash")
 
-# Test analysis requires complex reasoning
-TEST_ANALYZER_MODEL = os.getenv("TEST_ANALYZER_MODEL", "gemini-3-pro-preview")
+# Test analysis requires complex reasoning - use 2.5-pro
+TEST_ANALYZER_MODEL = os.getenv("TEST_ANALYZER_MODEL", "gemini-2.5-pro")
 
 # Feedback synthesis needs good reasoning but not cutting edge
 FEEDBACK_SYNTHESIZER_MODEL = os.getenv("FEEDBACK_SYNTHESIZER_MODEL", "gemini-2.5-pro")

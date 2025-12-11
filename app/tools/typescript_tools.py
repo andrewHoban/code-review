@@ -26,6 +26,7 @@ from typing import Any
 from google.adk.tools import FunctionTool, ToolContext
 
 from app.config import TYPESCRIPT_MAX_LINE_LENGTH
+from app.utils.security import MAX_CODE_CONTENT_SIZE, validate_content_size
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,9 @@ async def analyze_typescript_structure(
                     "status": "error",
                     "message": "No TypeScript code provided or found in state",
                 }
+
+        # Validate code size to prevent DoS
+        validate_content_size(code, MAX_CODE_CONTENT_SIZE)
 
         # Parse in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
@@ -223,6 +227,9 @@ async def check_typescript_style(
                     "message": "No TypeScript code provided or found in state",
                 }
 
+        # Validate code size to prevent DoS
+        validate_content_size(code, MAX_CODE_CONTENT_SIZE)
+
         # Try ESLint first, fall back to pattern matching
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
@@ -267,6 +274,9 @@ async def check_typescript_style(
 
 def _perform_typescript_style_check_eslint(code: str) -> dict[str, Any]:
     """Perform style check using ESLint if available."""
+    # Validate code size before writing to temp file
+    validate_content_size(code, MAX_CODE_CONTENT_SIZE)
+
     with tempfile.NamedTemporaryFile(mode="w", suffix=".ts", delete=False) as tmp:
         tmp.write(code)
         tmp_path = tmp.name
@@ -274,12 +284,13 @@ def _perform_typescript_style_check_eslint(code: str) -> dict[str, Any]:
         os.chmod(tmp_path, 0o600)
 
     try:
-        # Try to run ESLint
+        # Try to run ESLint with strict timeout and security
         result = subprocess.run(
             ["npx", "eslint", "--format", "json", tmp_path],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=10,  # Strict timeout to prevent hanging
+            check=False,  # Don't raise on non-zero exit
         )
 
         if result.returncode == 0:

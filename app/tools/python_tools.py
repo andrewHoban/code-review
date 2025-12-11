@@ -26,6 +26,7 @@ import pycodestyle
 from google.adk.tools import FunctionTool, ToolContext
 
 from app.config import PYTHON_MAX_LINE_LENGTH, PYTHON_STYLE_WEIGHTS
+from app.utils.security import MAX_CODE_CONTENT_SIZE, validate_content_size
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,9 @@ async def analyze_python_structure(
                     "status": "error",
                     "message": "No Python code provided or found in state",
                 }
+
+        # Validate code size to prevent DoS
+        validate_content_size(code, MAX_CODE_CONTENT_SIZE)
 
         # Parse in thread pool to avoid blocking the event loop
         loop = asyncio.get_event_loop()
@@ -279,6 +283,9 @@ async def check_python_style(code: str, tool_context: ToolContext) -> dict[str, 
                     "message": "No Python code provided or found in state",
                 }
 
+        # Validate code size to prevent DoS
+        validate_content_size(code, MAX_CODE_CONTENT_SIZE)
+
         # Run style check in thread pool
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
@@ -360,6 +367,9 @@ def _parse_pycodestyle_output(output: str) -> list[dict[str, Any]]:
 
 def _perform_python_style_check(code: str) -> dict[str, Any]:
     """Helper to perform Python style check in thread pool."""
+    # Validate code size before writing to temp file
+    validate_content_size(code, MAX_CODE_CONTENT_SIZE)
+
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
         tmp.write(code)
         tmp_path = tmp.name

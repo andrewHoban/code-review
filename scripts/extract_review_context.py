@@ -34,9 +34,15 @@ from app.models.input_schema import (
     ReviewContext,
     TestFile,
 )
+from app.utils.security import (
+    MAX_FILE_CONTENT_SIZE,
+    sanitize_file_path,
+    validate_commit_sha,
+    validate_content_size,
+)
 
 # Maximum file size to include (100KB)
-MAX_FILE_SIZE = 100 * 1024
+MAX_FILE_SIZE = MAX_FILE_CONTENT_SIZE
 
 # Language detection patterns
 LANGUAGE_PATTERNS = {
@@ -73,24 +79,63 @@ def is_test_file(file_path: str, language: str | None) -> bool:
     return False
 
 
-def get_file_content(repo: Repo, file_path: str, commit_sha: str | None = None) -> str:
-    """Get file content from repository."""
+def get_file_content(
+    repo: Repo,
+    file_path: str,
+    commit_sha: str | None = None,
+    repo_root: Path | None = None,
+) -> str:
+    """Get file content from repository with security validation."""
     try:
+        # Validate and sanitize file path
+        if repo_root:
+            sanitized_path = sanitize_file_path(file_path, repo_root)
+            file_path = str(sanitized_path.relative_to(repo_root))
+
+        # Validate commit SHA if provided
         if commit_sha:
+            validate_commit_sha(commit_sha)
             commit = repo.commit(commit_sha)
             blob = commit.tree / file_path
         else:
             blob = repo.head.commit.tree / file_path
-        return blob.data_stream.read().decode("utf-8", errors="ignore")
+
+        content = blob.data_stream.read().decode("utf-8", errors="ignore")
+        # Validate content size
+        validate_content_size(content, MAX_FILE_CONTENT_SIZE)
+        return content
+    except (ValueError, OSError) as e:
+        print(f"Warning: Could not read file {file_path}: {e}")
+        return ""
     except Exception:
         return ""
 
 
-def get_diff(repo: Repo, base_sha: str, head_sha: str, file_path: str) -> str:
-    """Get unified diff for a file."""
+def get_diff(
+    repo: Repo,
+    base_sha: str,
+    head_sha: str,
+    file_path: str,
+    repo_root: Path | None = None,
+) -> str:
+    """Get unified diff for a file with security validation."""
     try:
+        # Validate commit SHAs
+        validate_commit_sha(base_sha)
+        validate_commit_sha(head_sha)
+
+        # Validate and sanitize file path
+        if repo_root:
+            sanitized_path = sanitize_file_path(file_path, repo_root)
+            file_path = str(sanitized_path.relative_to(repo_root))
+
         diff = repo.git.diff(base_sha, head_sha, "--", file_path)
+        # Validate diff size
+        validate_content_size(diff, MAX_FILE_CONTENT_SIZE)
         return diff
+    except (ValueError, OSError) as e:
+        print(f"Warning: Could not get diff for {file_path}: {e}")
+        return ""
     except Exception:
         return ""
 
@@ -117,17 +162,25 @@ def get_changed_lines(diff: str) -> list[int]:
 
 
 def find_related_files(
-    repo: Repo, changed_files: list[str], head_sha: str | None = None
+    repo: Repo,
+    changed_files: list[str],
+    head_sha: str | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, list[str]]:
-    """Find files related to changed files (imports, dependencies)."""
+    """Find files related to changed files (imports, dependencies) with security validation."""
     related = {}
+
     for file_path in changed_files:
         language = detect_language(file_path)
         if not language:
             continue
 
         try:
-            content = get_file_content(repo, file_path, head_sha)
+            # Validate file path
+            if repo_root:
+                sanitize_file_path(file_path, repo_root)
+
+            content = get_file_content(repo, file_path, head_sha, repo_root)
             imports = []
 
             if language == "python":
@@ -141,8 +194,14 @@ def find_related_files(
                         module_path = module.replace(".", "/")
                         for ext in [".py", ".pyi"]:
                             potential_path = f"{module_path}{ext}"
-                            if (repo.head.commit.tree / potential_path).exists():
-                                imports.append(potential_path)
+                            # Validate potential path
+                            try:
+                                if repo_root:
+                                    sanitize_file_path(potential_path, repo_root)
+                                if (repo.head.commit.tree / potential_path).exists():
+                                    imports.append(potential_path)
+                            except ValueError:
+                                continue  # Skip invalid paths
 
             elif language in ["typescript", "javascript"]:
                 # Find TypeScript/JavaScript imports
@@ -160,10 +219,19 @@ def find_related_files(
                                     ".ts" if language == "typescript" else ".js"
                                 )
                             )
-                            if (repo.head.commit.tree / potential_path).exists():
-                                imports.append(potential_path)
+                            # Validate resolved path
+                            try:
+                                if repo_root:
+                                    sanitize_file_path(potential_path, repo_root)
+                                if (repo.head.commit.tree / potential_path).exists():
+                                    imports.append(potential_path)
+                            except ValueError:
+                                continue  # Skip invalid paths
 
-            related[file_path] = imports
+            related[file_path] = imports[:10]  # Limit imports per file
+        except (ValueError, OSError) as e:
+            print(f"Warning: Error processing {file_path}: {e}")
+            related[file_path] = []
         except Exception:
             related[file_path] = []
 
@@ -266,7 +334,16 @@ def extract_review_context(
     head_sha: str,
     github_token: str | None = None,
 ) -> CodeReviewInput:
-    """Extract review context from PR and build agent input."""
+    """Extract review context from PR and build agent input with security validation."""
+    # Validate and sanitize repository path
+    repo_root = Path(repo_path).resolve()
+    if not repo_root.exists() or not repo_root.is_dir():
+        raise ValueError(f"Invalid repository path: {repo_path}")
+
+    # Validate commit SHAs
+    validate_commit_sha(base_sha)
+    validate_commit_sha(head_sha)
+
     repo = Repo(repo_path)
 
     # Get PR metadata from GitHub API
@@ -329,6 +406,13 @@ def extract_review_context(
     # Process changed files
     processed_files = []
     for file_path, status_char in changed_paths:
+        # Validate and sanitize file path
+        try:
+            sanitize_file_path(file_path, repo_root)
+        except ValueError as e:
+            print(f"Skipping invalid file path {file_path}: {e}")
+            continue
+
         # Skip binary and large files
         try:
             file_size = os.path.getsize(os.path.join(repo_path, file_path))
@@ -342,9 +426,9 @@ def extract_review_context(
         if not language or language not in ["python", "typescript"]:
             continue
 
-        # Get file content and diff
-        full_content = get_file_content(repo, file_path, head_sha)
-        diff = get_diff(repo, base_sha, head_sha, file_path)
+        # Get file content and diff with security validation
+        full_content = get_file_content(repo, file_path, head_sha, repo_root)
+        diff = get_diff(repo, base_sha, head_sha, file_path, repo_root)
         lines_changed = get_changed_lines(diff)
 
         # Count additions and deletions
@@ -378,14 +462,16 @@ def extract_review_context(
 
     # Find related files
     changed_paths_list = [f.path for f in processed_files]
-    related_map = find_related_files(repo, changed_paths_list, head_sha)
+    related_map = find_related_files(repo, changed_paths_list, head_sha, repo_root)
     related_files_list = []
     for file_path, related_paths in related_map.items():
         for related_path in related_paths[
             :5
         ]:  # Limit to 5 related files per changed file
             try:
-                content = get_file_content(repo, related_path, head_sha)
+                # Validate related file path
+                sanitize_file_path(related_path, repo_root)
+                content = get_file_content(repo, related_path, head_sha, repo_root)
                 lang = detect_language(related_path)
                 related_files_list.append(
                     RelatedFile(
@@ -395,6 +481,9 @@ def extract_review_context(
                         language=lang or "unknown",
                     )
                 )
+            except (ValueError, OSError) as e:
+                print(f"Warning: Skipping related file {related_path}: {e}")
+                continue
             except Exception:
                 pass
 
@@ -404,7 +493,9 @@ def extract_review_context(
     for file_path, test_paths in test_map.items():
         for test_path in test_paths:
             try:
-                content = get_file_content(repo, test_path, head_sha)
+                # Validate test file path
+                sanitize_file_path(test_path, repo_root)
+                content = get_file_content(repo, test_path, head_sha, repo_root)
                 lang = detect_language(test_path)
                 test_files_list.append(
                     TestFile(
@@ -414,6 +505,9 @@ def extract_review_context(
                         language=lang or "unknown",
                     )
                 )
+            except (ValueError, OSError) as e:
+                print(f"Warning: Skipping test file {test_path}: {e}")
+                continue
             except Exception:
                 pass
 
