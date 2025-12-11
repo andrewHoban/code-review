@@ -75,7 +75,11 @@ def test_agent_app_has_root_agent(agent_app: AgentEngineApp) -> None:
     agent = agent_app._tmpl_attrs.get("agent")
     assert agent is not None
     assert agent.name is not None
-    assert "CodeReviewOrchestrator" in agent.name
+    assert "CodeReviewRoot" in agent.name
+    # Verify it has the orchestrator as a sub-agent
+    assert len(agent.sub_agents) > 0
+    sub_agent_names = [sub.name for sub in agent.sub_agents]
+    assert any("Orchestrator" in name for name in sub_agent_names)
 
 
 @pytest.mark.asyncio
