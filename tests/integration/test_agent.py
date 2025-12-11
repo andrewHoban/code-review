@@ -104,9 +104,8 @@ def test_python_pipeline_agents_have_tools() -> None:
 def test_agent_output_keys_are_configured() -> None:
     """Test that agents have output keys configured."""
     assert root_agent.output_key is not None
-    assert (
-        python_review_pipeline.output_key is None
-    )  # Sequential agents don't have output_key
+    # Sequential agents don't have output_key attribute, which is expected
+    assert not hasattr(python_review_pipeline, "output_key")
     # But sub-agents should have output keys
     for agent in python_review_pipeline.sub_agents:
         assert agent.output_key is not None, f"{agent.name} should have an output_key"
