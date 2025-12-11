@@ -16,10 +16,6 @@
 
 # mypy: disable-error-code="union-attr"
 import pytest
-from google.adk.agents.run_config import RunConfig, StreamingMode
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
 
 from app.agent import root_agent
 from app.agents.python_review_pipeline import python_review_pipeline
@@ -77,9 +73,9 @@ def test_python_pipeline_has_sub_agents() -> None:
     """Test that Python pipeline has the expected sub-agents."""
     assert len(python_review_pipeline.sub_agents) > 0
     sub_agent_names = [agent.name for agent in python_review_pipeline.sub_agents]
-    # Should have analyzer, style checker, test analyzer, and synthesizer
+    # Should have analyzer, design checker, test analyzer, and synthesizer
     assert any("analyzer" in name.lower() for name in sub_agent_names)
-    assert any("style" in name.lower() for name in sub_agent_names)
+    assert any("design" in name.lower() for name in sub_agent_names)
     assert any("test" in name.lower() for name in sub_agent_names)
     assert any(
         "synthesizer" in name.lower() or "feedback" in name.lower()
@@ -100,9 +96,9 @@ def test_typescript_pipeline_has_sub_agents() -> None:
     """Test that TypeScript pipeline has the expected sub-agents."""
     assert len(typescript_review_pipeline.sub_agents) > 0
     sub_agent_names = [agent.name for agent in typescript_review_pipeline.sub_agents]
-    # Should have analyzer, style checker, test analyzer, and synthesizer
+    # Should have analyzer, design checker, test analyzer, and synthesizer
     assert any("analyzer" in name.lower() for name in sub_agent_names)
-    assert any("style" in name.lower() for name in sub_agent_names)
+    assert any("design" in name.lower() for name in sub_agent_names)
     assert any("test" in name.lower() for name in sub_agent_names)
     assert any(
         "synthesizer" in name.lower() or "feedback" in name.lower()
