@@ -259,8 +259,9 @@ def find_reverse_dependencies(
     # Get all Python and TypeScript files in the repository
     all_code_files = []
     for item in repo.head.commit.tree.traverse():
-        if item.type == "blob":
-            file_path = item.path
+        # Type guard: only process Blob objects (files)
+        if hasattr(item, "type") and hasattr(item, "path") and item.type == "blob":
+            file_path = str(item.path)  # Ensure it's a string
             lang = detect_language(file_path)
             if lang in ["python", "typescript", "javascript"]:
                 # Skip test files (already handled separately)
@@ -328,17 +329,20 @@ def find_reverse_dependencies(
                 if len(importers) >= MAX_REVERSE_DEPENDENCIES:
                     break
 
+                # Ensure candidate_path is a string
+                candidate_path_str = str(candidate_path)
+
                 # Skip if already found
-                if candidate_path in importers:
+                if candidate_path_str in importers:
                     continue
 
                 try:
                     # Validate candidate path
                     if repo_root:
-                        sanitize_file_path(candidate_path, repo_root)
+                        sanitize_file_path(candidate_path_str, repo_root)
 
                     content = get_file_content(
-                        repo, candidate_path, head_sha, repo_root
+                        repo, candidate_path_str, head_sha, repo_root
                     )
                     if not content:
                         continue
@@ -353,7 +357,7 @@ def find_reverse_dependencies(
                                 re.IGNORECASE,
                             )
                             if import_regex.search(content):
-                                importers.append(candidate_path)
+                                importers.append(candidate_path_str)
                                 break
 
                         # Check relative imports: from .auth import, from ..auth import
@@ -374,7 +378,7 @@ def find_reverse_dependencies(
                                     ) or str(candidate_dir).startswith(
                                         str(changed_dir)
                                     ):
-                                        importers.append(candidate_path)
+                                        importers.append(candidate_path_str)
                                 except (ValueError, AttributeError):
                                     pass
 
@@ -413,19 +417,19 @@ def find_reverse_dependencies(
 
                                 for pattern in import_patterns:
                                     if re.search(pattern, content, re.IGNORECASE):
-                                        importers.append(candidate_path)
+                                        importers.append(candidate_path_str)
                                         break
                             except ValueError:
                                 # Files not in same directory tree, try pattern matching
                                 # Check if any import contains the changed file's stem
                                 stem_pattern = rf"import\s+.*from\s+['\"][^'\"]*{re.escape(changed_stem)}['\"]"
                                 if re.search(stem_pattern, content, re.IGNORECASE):
-                                    importers.append(candidate_path)
+                                    importers.append(candidate_path_str)
                         except (ValueError, OSError):
                             # Fallback: simple pattern matching on file stem
                             stem_pattern = rf"import\s+.*from\s+['\"][^'\"]*{re.escape(changed_stem)}['\"]"
                             if re.search(stem_pattern, content, re.IGNORECASE):
-                                importers.append(candidate_path)
+                                importers.append(candidate_path_str)
 
                 except (ValueError, OSError):
                     # Skip invalid paths or files we can't read
@@ -509,12 +513,14 @@ def get_repository_info(repo: Repo) -> RepositoryInfo:
     has_tests = False
 
     for item in repo.head.commit.tree.traverse():
-        if item.type == "blob":
+        # Type guard: only process Blob objects (files)
+        if hasattr(item, "type") and hasattr(item, "path") and item.type == "blob":
             total_files += 1
-            lang = detect_language(item.path)
+            file_path = str(item.path)  # Ensure it's a string
+            lang = detect_language(file_path)
             if lang:
                 languages.add(lang)
-            if is_test_file(item.path, lang):
+            if is_test_file(file_path, lang):
                 has_tests = True
 
     primary_language = (
@@ -698,24 +704,25 @@ def extract_review_context(
     # Agents can use get_related_file_tool to load content on-demand
     for file_path, related_paths in related_map.items():
         for related_path in related_paths[:5]:  # Limit to 5 per changed file
-            if related_path in added_files:
+            related_path_str = str(related_path)
+            if related_path_str in added_files:
                 continue
             try:
-                sanitize_file_path(related_path, repo_root)
-                lang = detect_language(related_path)
+                sanitize_file_path(related_path_str, repo_root)
+                lang = detect_language(related_path_str)
                 # Store path and relationship, but load content on-demand
                 # This reduces token usage - content only loaded if agent needs it
                 related_files_list.append(
                     RelatedFile(
-                        path=related_path,
+                        path=related_path_str,
                         content="",  # Empty - loaded on-demand via tool
                         relationship=f"imported by {file_path}",
                         language=lang or "unknown",
                     )
                 )
-                added_files.add(related_path)
+                added_files.add(related_path_str)
             except (ValueError, OSError) as e:
-                print(f"Warning: Skipping related file {related_path}: {e}")
+                print(f"Warning: Skipping related file {related_path_str}: {e}")
                 continue
             except Exception:
                 pass
@@ -723,22 +730,23 @@ def extract_review_context(
     # Store reverse dependencies (files that import changed files)
     for file_path, reverse_paths in reverse_deps_map.items():
         for reverse_path in reverse_paths:
-            if reverse_path in added_files:
+            reverse_path_str = str(reverse_path)
+            if reverse_path_str in added_files:
                 continue
             try:
-                sanitize_file_path(reverse_path, repo_root)
-                lang = detect_language(reverse_path)
+                sanitize_file_path(reverse_path_str, repo_root)
+                lang = detect_language(reverse_path_str)
                 related_files_list.append(
                     RelatedFile(
-                        path=reverse_path,
+                        path=reverse_path_str,
                         content="",  # Empty - loaded on-demand via tool
                         relationship=f"imports {file_path}",
                         language=lang or "unknown",
                     )
                 )
-                added_files.add(reverse_path)
+                added_files.add(reverse_path_str)
             except (ValueError, OSError) as e:
-                print(f"Warning: Skipping reverse dependency {reverse_path}: {e}")
+                print(f"Warning: Skipping reverse dependency {reverse_path_str}: {e}")
                 continue
             except Exception:
                 pass
@@ -748,14 +756,15 @@ def extract_review_context(
     test_files_list = []
     for file_path, test_paths in test_map.items():
         for test_path in test_paths:
+            test_path_str = str(test_path)
             try:
                 # Validate test file path
-                sanitize_file_path(test_path, repo_root)
-                content = get_file_content(repo, test_path, head_sha, repo_root)
-                lang = detect_language(test_path)
+                sanitize_file_path(test_path_str, repo_root)
+                content = get_file_content(repo, test_path_str, head_sha, repo_root)
+                lang = detect_language(test_path_str)
                 test_files_list.append(
                     TestFile(
-                        path=test_path,
+                        path=test_path_str,
                         content=content,
                         tests_for=file_path,
                         language=lang or "unknown",

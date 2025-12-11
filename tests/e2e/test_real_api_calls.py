@@ -62,6 +62,8 @@ def minimal_python_pr_input(sample_python_code: str) -> CodeReviewInput:
             title="Test PR",
             description="Test description",
             author="test_user",
+            base_sha=None,
+            head_sha=None,
             base_branch="main",
             head_branch="feature",
         ),
@@ -133,6 +135,7 @@ async def test_python_pipeline_e2e_structure_analysis(
     final_session = await session_service.get_session(
         user_id="test_user", session_id=session.id, app_name="test"
     )
+    assert final_session is not None
     final_state = final_session.state
 
     # Verify specific expected state key exists and has meaningful content
@@ -194,6 +197,7 @@ async def test_python_pipeline_e2e_with_fixture() -> None:
     final_session = await session_service.get_session(
         user_id="test_user", session_id=session.id, app_name="test"
     )
+    assert final_session is not None
     final_state = final_session.state
 
     # Should have structure analysis with valid content
@@ -220,6 +224,8 @@ async def test_root_agent_language_routing_python() -> None:
             author="dev",
             base_branch="main",
             head_branch="feature",
+            base_sha=None,
+            head_sha=None,
         ),
         review_context=ReviewContext(
             changed_files=[
@@ -270,6 +276,7 @@ async def test_root_agent_language_routing_python() -> None:
     final_session = await session_service.get_session(
         user_id="test_user", session_id=session.id, app_name="test"
     )
+    assert final_session is not None
     final_state = final_session.state
 
     # Verify language detection state

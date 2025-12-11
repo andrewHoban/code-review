@@ -63,6 +63,8 @@ def minimal_python_pr_input(sample_python_code: str) -> CodeReviewInput:
             author="test_user",
             base_branch="main",
             head_branch="feature",
+            base_sha=None,
+            head_sha=None,
         ),
         review_context=ReviewContext(
             changed_files=[

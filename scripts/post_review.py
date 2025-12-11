@@ -94,7 +94,7 @@ def post_review_comments(
                     # Create review comment
                     pr.create_review_comment(
                         body=body,
-                        commit_id=file_sha,
+                        commit=file_sha,
                         path=file_path,
                         line=line,
                         side=side,

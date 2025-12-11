@@ -15,7 +15,7 @@
 """Output formatting tools for code review results."""
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from google.adk.tools import FunctionTool, ToolContext
 
@@ -89,6 +89,7 @@ def format_review_output(
         )
 
         # Determine overall status
+        overall_status: Literal["APPROVED", "NEEDS_CHANGES", "COMMENT"]
         if critical_count > 0:
             overall_status = "NEEDS_CHANGES"
         elif warning_count > 0 or len(issues) > 0:

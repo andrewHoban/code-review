@@ -44,6 +44,8 @@ def python_only_pr() -> CodeReviewInput:
             author="dev",
             base_branch="main",
             head_branch="feature",
+            base_sha=None,
+            head_sha=None,
         ),
         review_context=ReviewContext(
             changed_files=[
@@ -83,6 +85,8 @@ def typescript_only_pr() -> CodeReviewInput:
             author="dev",
             base_branch="main",
             head_branch="feature",
+            base_sha=None,
+            head_sha=None,
         ),
         review_context=ReviewContext(
             changed_files=[
@@ -120,6 +124,8 @@ def mixed_language_pr() -> CodeReviewInput:
             repository="test/repo",
             title="Mixed PR",
             author="dev",
+            base_sha=None,
+            head_sha=None,
             base_branch="main",
             head_branch="feature",
         ),

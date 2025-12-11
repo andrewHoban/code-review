@@ -229,6 +229,8 @@ class TestInputSchemaValidation:
                 author="user",
                 base_branch="main",
                 head_branch="feature",
+                base_sha=None,
+                head_sha=None,
             )
 
     def test_pr_metadata_invalid_branch(self) -> None:
@@ -241,6 +243,8 @@ class TestInputSchemaValidation:
                 author="user",
                 base_branch="../main",  # Path traversal
                 head_branch="feature",
+                base_sha=None,
+                head_sha=None,
             )
 
     def test_changed_file_content_size_limit(self) -> None:

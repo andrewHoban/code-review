@@ -26,9 +26,11 @@ def test_root_agent_has_correct_structure() -> None:
     """Test that root agent is configured correctly."""
     assert root_agent.name == "CodeReviewOrchestrator"
     assert root_agent.description is not None
-    assert len(root_agent.description) > 0
+    if isinstance(root_agent.description, str):
+        assert len(root_agent.description) > 0
     assert root_agent.instruction is not None
-    assert len(root_agent.instruction) > 0
+    if isinstance(root_agent.instruction, str):
+        assert len(root_agent.instruction) > 0
 
 
 @pytest.mark.skip(
@@ -113,10 +115,14 @@ def test_python_pipeline_agents_have_tools() -> None:
     for agent in python_review_pipeline.sub_agents:
         # First agent (analyzer) should have analysis tool
         if "analyzer" in agent.name.lower() and "test" not in agent.name.lower():
-            assert len(agent.tools) > 0, f"{agent.name} should have tools"
+            assert (
+                hasattr(agent, "tools") and len(agent.tools) > 0
+            ), f"{agent.name} should have tools"
         # Style checker should have style tool
         if "style" in agent.name.lower():
-            assert len(agent.tools) > 0, f"{agent.name} should have tools"
+            assert (
+                hasattr(agent, "tools") and len(agent.tools) > 0
+            ), f"{agent.name} should have tools"
 
 
 def test_agent_output_keys_are_configured() -> None:
@@ -126,4 +132,6 @@ def test_agent_output_keys_are_configured() -> None:
     assert not hasattr(python_review_pipeline, "output_key")
     # But sub-agents should have output keys
     for agent in python_review_pipeline.sub_agents:
-        assert agent.output_key is not None, f"{agent.name} should have an output_key"
+        assert (
+            hasattr(agent, "output_key") and agent.output_key is not None
+        ), f"{agent.name} should have an output_key"
