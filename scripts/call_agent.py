@@ -74,15 +74,7 @@ def call_agent_with_retry(
 
             def stream_worker() -> None:  # noqa: B023
                 """Worker thread to handle streaming with timeout detection."""
-                nonlocal (
-                    response_chunks,
-                    chunk_count,
-                    last_chunk_time,
-                    stream_error,
-                    agent,
-                    message_payload,
-                    stream_start_time,
-                )
+                nonlocal response_chunks, chunk_count, last_chunk_time, stream_error, agent, message_payload, stream_start_time
                 try:
                     print("  Invoking agent.stream_query()...")
                     stream_iterator = agent.stream_query(
@@ -167,64 +159,88 @@ def call_agent_with_retry(
             )
 
             # The agent returns streaming chunks - we need to find the final output
-            # The output is typically in the last chunk's content.parts[0].text
-            # or in the state_delta with the output_key
+            # Priority: structured data in state_delta > text response
+            # The pipelines store structured output in state (formatted_output, code_review_output, etc.)
 
-            final_output = None
+            structured_output = None
             all_text_parts = []
+            all_state_deltas = {}  # Accumulate all state deltas
 
             for i, chunk in enumerate(response_chunks):
-                # Try to extract from content
+                # Collect text from content
                 if hasattr(chunk, "content") and chunk.content:
                     if hasattr(chunk.content, "parts") and chunk.content.parts:
                         for part in chunk.content.parts:
                             if hasattr(part, "text") and part.text:
                                 all_text_parts.append(part.text)
 
-                # Try to extract from state_delta (output_key)
+                # Collect structured data from state_delta
                 if hasattr(chunk, "actions") and chunk.actions:
                     if (
                         hasattr(chunk.actions, "state_delta")
                         and chunk.actions.state_delta
                     ):
                         state_delta = chunk.actions.state_delta
-                        # Check for the output key
-                        if "code_review_output" in state_delta:
-                            final_output = state_delta["code_review_output"]
-                            print(f"Found code_review_output in chunk {i + 1}")
-                        # Also check for direct output
-                        for key in state_delta:
-                            if "output" in key.lower() or "review" in key.lower():
-                                if isinstance(state_delta[key], dict | list):
-                                    final_output = state_delta[key]
-                                    print(f"Found output in state_delta key: {key}")
+                        # Merge all state deltas (later chunks may override earlier ones)
+                        all_state_deltas.update(state_delta)
 
-            # If we found structured output in state, use it
-            if final_output:
-                if isinstance(final_output, dict):
-                    return final_output
-                elif isinstance(final_output, str):
+            # Look for structured output in accumulated state
+            # Check in order of preference:
+            # 1. code_review_output (root agent output key)
+            # 2. formatted_output (from output formatter tool)
+            # 3. Any key with "output" or "review" in the name
+            if "code_review_output" in all_state_deltas:
+                structured_output = all_state_deltas["code_review_output"]
+                print("Found code_review_output in state")
+            elif "formatted_output" in all_state_deltas:
+                structured_output = all_state_deltas["formatted_output"]
+                print("Found formatted_output in state")
+            else:
+                # Look for any output-like key
+                for key in all_state_deltas:
+                    if ("output" in key.lower() or "review" in key.lower()) and isinstance(
+                        all_state_deltas[key], (dict, list)
+                    ):
+                        structured_output = all_state_deltas[key]
+                        print(f"Found structured output in state key: {key}")
+                        break
+
+            # If we found structured output, use it (this is the source of truth)
+            if structured_output:
+                if isinstance(structured_output, dict):
+                    # Validate it has expected structure
+                    if "overall_status" in structured_output or "summary" in structured_output:
+                        print("Using structured output from state")
+                        return structured_output
+                    else:
+                        print(f"Structured output missing expected fields: {list(structured_output.keys())}")
+                elif isinstance(structured_output, str):
                     try:
-                        return json.loads(final_output)
+                        parsed = json.loads(structured_output)
+                        if isinstance(parsed, dict):
+                            return parsed
                     except json.JSONDecodeError:
                         pass
 
-            # Otherwise, try to parse the combined text
-            combined_text = "\n".join(all_text_parts)
+            # Fallback: Use text response and format it
+            combined_text = "\n".join(all_text_parts).strip()
 
             if combined_text:
-                print(f"Extracted {len(combined_text)} characters of text from chunks")
-                # Try to parse as JSON
-                try:
-                    return json.loads(combined_text)
-                except json.JSONDecodeError:
-                    # If not JSON, wrap it in a human-readable format
-                    return {
-                        "summary": combined_text,
-                        "inline_comments": [],
-                        "overall_status": "COMMENT",
-                        "metrics": {},
-                    }
+                print(f"Using text response ({len(combined_text)} characters)")
+                # Format the text response into expected structure
+                return {
+                    "summary": combined_text,
+                    "inline_comments": [],
+                    "overall_status": "COMMENT",
+                    "metrics": {
+                        "files_reviewed": 0,
+                        "issues_found": 0,
+                        "critical_issues": 0,
+                        "warnings": 0,
+                        "suggestions": 0,
+                        "style_score": 0.0,
+                    },
+                }
 
             # Last resort - try to extract anything from the final chunk
             final_chunk = response_chunks[-1]

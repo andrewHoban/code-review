@@ -96,6 +96,8 @@ Combine results from all pipelines. Be concise:
 - Overall status (APPROVED/NEEDS_CHANGES/COMMENT)
 - Metrics aggregated across all languages
 
+The pipelines will store structured results in state. Use that structured data to create your response.
+Do NOT output JSON - provide natural language feedback based on the structured data in state.
 Engineers value brevity. Don't waste their time with positivity.""",
     tools=[detect_languages_tool, get_related_file_tool, search_imports_tool],
     sub_agents=[python_review_pipeline, typescript_review_pipeline],
