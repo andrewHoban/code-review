@@ -2,6 +2,8 @@
 
 This document provides a visual overview of the code review agent system, including all agents, their prompts, models, and relationships.
 
+> **Note**: Last updated for automation testing - testing code review workflow.
+
 ## Quick Reference - Agent Hierarchy (ASCII)
 
 ```
