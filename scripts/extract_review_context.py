@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 from git import Repo
-from github import Github
+from github import Auth, Github
 
 from app.models.input_schema import (
     ChangedFile,
@@ -201,7 +201,15 @@ def find_test_files(
                 if not test_file.is_file():
                     continue
 
-                test_path = str(test_file.relative_to(repo_root))
+                # Ensure test_file is absolute and under repo_root
+                try:
+                    test_file_abs = test_file.resolve()
+                    repo_root_abs = repo_root.resolve()
+                    test_path = str(test_file_abs.relative_to(repo_root_abs))
+                except ValueError:
+                    # Skip files not under repo_root
+                    continue
+
                 test_lang = detect_language(test_path)
                 if test_lang == language and is_test_file(test_path, test_lang):
                     # Check if test file name suggests it tests this file
@@ -265,7 +273,8 @@ def extract_review_context(
     pr_metadata = None
     if github_token:
         try:
-            g = Github(github_token)
+            auth = Auth.Token(github_token)
+            g = Github(auth=auth)
             repo_obj = g.get_repo(repository)
             pr = repo_obj.get_pull(pr_number)
             pr_metadata = PullRequestMetadata(

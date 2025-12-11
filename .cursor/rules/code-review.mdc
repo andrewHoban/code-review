@@ -1,0 +1,420 @@
+---
+alwaysApply: false
+---
+# Code Review Best Practices
+
+This document outlines code review standards and practices for the Code Review Agent project. These guidelines ensure high-quality code, maintainable architecture, and effective collaboration.
+
+## Core Principles
+
+### 1. Review for Correctness, Not Style
+- Focus on logic, architecture, and correctness over formatting
+- Style issues should be caught by automated tools (Ruff, MyPy, ESLint)
+- If style is discussed, it should be about consistency with project conventions
+
+### 2. Keep Reviews Small and Focused
+- Limit PRs to 200-400 lines of code when possible
+- Smaller PRs are easier to review thoroughly and lead to better feedback
+- Break large features into smaller, reviewable chunks
+- Each PR should have a single, clear purpose
+
+### 3. Provide Constructive, Actionable Feedback
+- Be specific about what needs to change and why
+- Suggest concrete improvements, not just problems
+- Explain the reasoning behind your feedback
+- Use a respectful, collaborative tone
+- Frame feedback as questions when appropriate ("Have you considered...?")
+
+### 4. Review the Right Things
+- **Functionality**: Does the code do what it's supposed to do?
+- **Architecture**: Does it fit well with the existing system?
+- **Edge Cases**: Are error conditions and boundary cases handled?
+- **Performance**: Are there obvious performance issues?
+- **Security**: Are there security vulnerabilities?
+- **Testability**: Is the code testable? Are there adequate tests?
+
+## Review Checklist
+
+### Code Quality
+
+#### Correctness
+- [ ] Does the code implement the intended functionality?
+- [ ] Are edge cases and error conditions handled?
+- [ ] Are there any obvious bugs or logic errors?
+- [ ] Does the code handle null/None values appropriately?
+- [ ] Are there potential race conditions or concurrency issues?
+
+#### Architecture & Design
+- [ ] Does the code follow existing patterns and conventions?
+- [ ] Is the code organized logically?
+- [ ] Are responsibilities clearly separated?
+- [ ] Is the code reusable where appropriate?
+- [ ] Are dependencies appropriate and minimal?
+- [ ] Does it integrate well with existing code?
+
+#### Performance
+- [ ] Are there obvious performance bottlenecks?
+- [ ] Are database queries efficient (if applicable)?
+- [ ] Is there unnecessary computation or I/O?
+- [ ] Are algorithms and data structures appropriate?
+
+#### Security
+- [ ] Are user inputs validated and sanitized?
+- [ ] Are there potential injection vulnerabilities?
+- [ ] Are secrets or sensitive data handled securely?
+- [ ] Are permissions and access controls appropriate?
+
+### Code Maintainability
+
+#### Readability
+- [ ] Is the code easy to understand?
+- [ ] Are variable and function names clear and descriptive?
+- [ ] Is the code self-documenting?
+- [ ] Are complex sections commented appropriately?
+- [ ] Is the code structure clear?
+
+#### Documentation
+- [ ] Are public APIs documented?
+- [ ] Are complex algorithms or business logic explained?
+- [ ] Are docstrings present and accurate?
+- [ ] Is README updated if needed?
+
+#### Technical Debt
+- [ ] Does the code introduce unnecessary complexity?
+- [ ] Are there TODO comments that should be addressed?
+- [ ] Is the code following best practices for the language/framework?
+
+## Test Quality Standards
+
+### Test Philosophy
+
+Tests must verify **real functionality**, not be rigged to pass. Tests should fail when the code is broken and pass when the code is correct.
+
+### What Makes a Good Test
+
+#### 1. Tests Real Behavior
+- **DO**: Test that a function produces the correct output for given inputs
+- **DO**: Test that error conditions are handled correctly
+- **DO**: Test integration between components
+- **DON'T**: Test implementation details that don't affect behavior
+- **DON'T**: Write tests that always pass regardless of code correctness
+- **DON'T**: Mock everything to the point where you're not testing real functionality
+
+#### 2. Tests Meaningful Scenarios
+- **DO**: Test common use cases and happy paths
+- **DO**: Test edge cases and error conditions
+- **DO**: Test realistic data and scenarios
+- **DON'T**: Test trivial getters/setters unless they have logic
+- **DON'T**: Test framework/library code (test your code, not dependencies)
+- **DON'T**: Write tests for code that's already covered by integration tests
+
+#### 3. Avoid Over-Testing
+- **DO**: Focus on critical paths and user-facing functionality
+- **DO**: Use risk-based testing - prioritize high-risk areas
+- **DO**: Follow the test pyramid: 70% unit, 25% integration, 5% E2E
+- **DON'T**: Write multiple tests that verify the same thing
+- **DON'T**: Test every possible combination of inputs
+- **DON'T**: Write tests for code that's unlikely to break or change
+
+### Test Quality Checklist
+
+#### Test Correctness
+- [ ] Does the test actually verify the intended behavior?
+- [ ] Would the test fail if the code were broken?
+- [ ] Does the test use realistic test data?
+- [ ] Are assertions specific and meaningful?
+- [ ] Does the test verify both success and failure cases?
+
+#### Test Independence
+- [ ] Can the test run in any order?
+- [ ] Does the test clean up after itself?
+- [ ] Are there no dependencies on other tests?
+- [ ] Can the test run in parallel with other tests?
+
+#### Test Maintainability
+- [ ] Is the test easy to understand?
+- [ ] Does the test name clearly describe what it tests?
+- [ ] Is the test data minimal but sufficient?
+- [ ] Are complex test setups extracted into fixtures?
+- [ ] Is the test focused on one thing?
+
+#### Test Coverage
+- [ ] Are critical paths covered?
+- [ ] Are error conditions tested?
+- [ ] Are edge cases tested?
+- [ ] Is coverage appropriate (not too low, not obsessive)?
+
+### Red Flags in Tests
+
+Watch for these warning signs that indicate poor test quality:
+
+1. **Tests that can't fail**: Tests that pass even when the code is broken
+   ```python
+   # BAD: This test always passes
+   def test_calculate_total():
+       result = calculate_total([1, 2, 3])
+       assert result is not None  # Too weak!
+
+   # GOOD: This test verifies actual behavior
+   def test_calculate_total():
+       result = calculate_total([1, 2, 3])
+       assert result == 6
+   ```
+
+2. **Over-mocking**: Mocking so much that you're not testing real code
+   ```python
+   # BAD: Mocking everything means testing nothing
+   @patch('module.function_a')
+   @patch('module.function_b')
+   @patch('module.function_c')
+   def test_my_function(mock_c, mock_b, mock_a):
+       # What are we actually testing?
+
+   # GOOD: Mock only external dependencies
+   @patch('requests.get')
+   def test_fetch_data(mock_get):
+       mock_get.return_value.json.return_value = {'data': 'test'}
+       result = fetch_data('http://api.example.com')
+       assert result == {'data': 'test'}
+   ```
+
+3. **Testing implementation details**: Testing how code works instead of what it does
+   ```python
+   # BAD: Testing internal state
+   def test_process_data():
+       processor = DataProcessor()
+       processor.process(data)
+       assert processor._internal_counter == 5  # Implementation detail!
+
+   # GOOD: Testing observable behavior
+   def test_process_data():
+       processor = DataProcessor()
+       result = processor.process(data)
+       assert result.status == 'completed'
+   ```
+
+4. **Trivial tests**: Testing code that has no logic
+   ```python
+   # BAD: Testing a simple getter
+   def test_get_name():
+       obj = MyClass(name="test")
+       assert obj.get_name() == "test"  # Trivial!
+
+   # GOOD: Only test if there's actual logic
+   def test_get_name_with_default():
+       obj = MyClass()
+       assert obj.get_name() == "Unknown"  # Has logic!
+   ```
+
+5. **Duplicate coverage**: Multiple tests verifying the same thing
+   ```python
+   # BAD: Three tests doing the same thing
+   def test_add_positive_numbers(): ...
+   def test_add_small_numbers(): ...
+   def test_add_integers(): ...
+
+   # GOOD: One comprehensive test with multiple cases
+   @pytest.mark.parametrize("a,b,expected", [
+       (1, 2, 3), (0, 0, 0), (-1, 1, 0)
+   ])
+   def test_add_numbers(a, b, expected): ...
+   ```
+
+### Test Coverage Guidelines
+
+- **Target Coverage**: 80% overall, 90% for critical business logic
+- **Focus Areas**: Tools, models, and core agent logic
+- **Lower Priority**: Simple utilities, configuration, deployment scripts
+- **Don't Obsess**: 100% coverage is not the goal - meaningful coverage is
+
+### Integration Test Guidelines
+
+For this code review agent project:
+
+- **Unit Tests (70%)**: Test individual tools and functions in isolation
+  - Language detection logic
+  - Code analysis tools (AST parsing, pattern matching)
+  - Output formatting
+  - Utility functions
+
+- **Integration Tests (25%)**: Test agent pipelines and orchestration
+  - Full pipeline execution (analyzer → style → test → synthesizer)
+  - Language routing
+  - State flow between agents
+  - Multi-language PR handling
+
+- **E2E Tests (5%)**: Test complete system behavior
+  - Full PR review flow with realistic data
+  - Error scenarios
+  - Output schema compliance
+
+## Review Process
+
+### For Authors
+
+1. **Before Submitting**
+   - Run tests locally and ensure they pass
+   - Run linters and fix issues
+   - Review your own code first
+   - Write clear PR descriptions
+   - Keep PRs focused and reasonably sized
+
+2. **PR Description Should Include**
+   - What changes were made and why
+   - How to test the changes
+   - Any breaking changes
+   - Related issues or tickets
+
+3. **Responding to Feedback**
+   - Thank reviewers for their time
+   - Ask for clarification if feedback is unclear
+   - Discuss trade-offs when you disagree
+   - Make requested changes or explain why not
+
+### For Reviewers
+
+1. **Review Promptly**
+   - Aim to review within 24 hours
+   - If you can't review soon, let the author know
+   - Don't let PRs sit for days without feedback
+
+2. **Be Thorough but Efficient**
+   - Read the code carefully
+   - Check the tests
+   - Consider edge cases
+   - But don't nitpick every detail
+
+3. **Approve When Ready**
+   - Don't require perfection for minor issues
+   - Approve if the code is good enough to merge
+   - Use "Request Changes" for blocking issues only
+   - Use comments for non-blocking suggestions
+
+4. **Review Tests**
+   - Verify tests actually test real functionality
+   - Check that tests would fail if code were broken
+   - Ensure adequate coverage without over-testing
+   - Look for test quality red flags
+
+## Automated Checks
+
+Before human review, these automated checks must pass:
+
+- [ ] Linters (Ruff for Python, ESLint for TypeScript)
+- [ ] Type checking (MyPy for Python, TypeScript compiler)
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Code coverage meets minimum thresholds
+- [ ] No security vulnerabilities (dependabot, etc.)
+
+Human reviewers should focus on:
+- Logic and correctness
+- Architecture and design
+- Test quality and coverage
+- Edge cases and error handling
+- Performance considerations
+
+## Language-Specific Guidelines
+
+### Python
+
+- Follow PEP 8 style guide (enforced by Ruff)
+- Use type hints for function signatures
+- Prefer composition over inheritance
+- Use context managers for resource management
+- Handle exceptions appropriately
+
+### TypeScript
+
+- Follow project ESLint configuration
+- Use TypeScript types, avoid `any`
+- Prefer async/await over promises
+- Use const/let appropriately
+- Follow React patterns if applicable
+
+## Agent-Specific Guidelines
+
+For this code review agent project:
+
+### Agent Architecture
+- [ ] Does the agent follow the pipeline pattern?
+- [ ] Are agents properly orchestrated?
+- [ ] Is state management clear and consistent?
+- [ ] Are tool calls appropriate and efficient?
+
+### Model Usage
+- [ ] Is the right model used for each task?
+- [ ] Are prompts clear and effective?
+- [ ] Is token usage reasonable?
+
+### Output Quality
+- [ ] Does output match the expected schema?
+- [ ] Are inline comments accurate and helpful?
+- [ ] Is the summary comprehensive?
+- [ ] Are severity levels appropriate?
+
+### Performance
+- [ ] Are agent calls optimized?
+- [ ] Is there unnecessary model usage?
+- [ ] Are tool calls batched when possible?
+
+## Common Issues to Watch For
+
+### Code Smells
+- Long functions (>50 lines)
+- Deep nesting (>3 levels)
+- Duplicate code
+- Magic numbers/strings
+- God objects/classes
+- Feature envy
+
+### Security Issues
+- SQL injection risks
+- XSS vulnerabilities
+- Insecure random number generation
+- Hardcoded secrets
+- Insecure file operations
+- Missing input validation
+
+### Performance Issues
+- N+1 query problems
+- Unnecessary loops
+- Large object copying
+- Missing indexes
+- Inefficient algorithms
+
+## Review Comments Best Practices
+
+### Good Review Comments
+- "This function is getting long. Consider extracting the validation logic into a separate function."
+- "I notice this handles the happy path but not the case where `user` is None. Should we add a check?"
+- "This test always passes because it only checks `result is not None`. Should we verify the actual value?"
+
+### Poor Review Comments
+- "This is wrong." (Not helpful - what's wrong and why?)
+- "Fix this." (What needs fixing?)
+- "This could be better." (How?)
+
+## Approval Criteria
+
+A PR should be approved when:
+- ✅ Code is correct and implements the intended functionality
+- ✅ Code follows project conventions and patterns
+- ✅ Tests are adequate and test real functionality
+- ✅ No blocking issues remain
+- ✅ Documentation is updated if needed
+
+A PR should NOT be approved when:
+- ❌ There are bugs or logic errors
+- ❌ Code doesn't follow project conventions
+- ❌ Tests are missing, inadequate, or rigged to pass
+- ❌ There are security vulnerabilities
+- ❌ Code introduces significant technical debt
+
+## Continuous Improvement
+
+- Review the review process periodically
+- Share learnings from bugs that made it to production
+- Update these guidelines based on team feedback
+- Keep automated tools up to date
+- Refine test coverage targets based on actual needs

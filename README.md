@@ -149,15 +149,23 @@ docs/
 See [`docs/testing-guidelines.md`](docs/testing-guidelines.md) for comprehensive testing documentation.
 
 ```bash
-# Run all tests
-pytest
+# Run all fast tests (unit + integration, excludes E2E)
+pytest -m "not e2e"
 
 # Run only unit tests
 pytest tests/unit
 
+# Run only integration tests (fast, no API calls)
+pytest tests/integration
+
+# Run E2E tests (real API calls - slow!)
+pytest -m "e2e" tests/e2e/
+
 # Run with coverage
-pytest --cov=app --cov-report=html
+pytest --cov=app --cov-report=html -m "not e2e"
 ```
+
+**Note:** Integration tests are fast (<1s each) and use mocked contexts. E2E tests make real API calls and are slow (20+ seconds each). Use `-m "not e2e"` to skip E2E tests in regular development.
 
 ## Deployment
 

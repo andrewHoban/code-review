@@ -16,12 +16,20 @@ This will install:
 
 ### 2. Run Tests
 ```bash
-# Run all tests
-make test
+# Run all fast tests (unit + integration, excludes E2E)
+pytest -m "not e2e"
 
-# Run specific test categories
+# Run only unit tests
 pytest tests/unit -v
-pytest tests/integration -v -m "not slow"
+
+# Run only integration tests (fast, no API calls)
+pytest tests/integration -v
+
+# Run E2E tests (real API calls - slow!)
+pytest -m "e2e" tests/e2e/
+
+# Or use make (runs unit + integration)
+make test
 ```
 
 ### 3. Test Locally

@@ -58,10 +58,15 @@ backend: deploy
 # Testing & Code Quality
 # ==============================================================================
 
-# Run unit and integration tests
+# Run unit and integration tests (fast, excludes E2E)
 test:
 	uv sync --dev
-	uv run pytest tests/unit && uv run pytest tests/integration
+	uv run pytest tests/unit tests/integration -m "not e2e"
+
+# Run all tests including E2E (slow - real API calls)
+test-all:
+	uv sync --dev
+	uv run pytest tests/unit tests/integration tests/e2e
 
 # Run code quality checks (codespell, ruff, mypy)
 lint:

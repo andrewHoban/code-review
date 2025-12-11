@@ -70,7 +70,7 @@ def add(a, b):
     return a + b
 """
     result = analyze_python_structure(code)
-    
+
     assert result['functions'] == [{'name': 'add', 'args': ['a', 'b']}]
     assert result['function_count'] == 1
 ```
@@ -92,84 +92,89 @@ def add(a, b):
 
 **Location:** `tests/integration/`
 
-**Purpose:** Test agent pipelines and orchestration
+**Purpose:** Test tool execution, state management, and component integration
 
 **Characteristics:**
-- Test full pipeline execution
-- Use realistic but synthetic data
-- Verify state flow between agents
-- Test agent coordination
+- Test tools directly with mocked contexts (no LLM API calls)
+- Fast execution (<1s per test)
+- Verify state flow between components
+- Test error handling and edge cases
+- Validate actual behavior, not just existence
 
 **Example Structure:**
 ```python
 # tests/integration/test_python_pipeline.py
 import pytest
-from app.agents.python_review_pipeline import python_review_pipeline
-from app.models.input_schema import CodeReviewInput
+from unittest.mock import MagicMock
+from app.tools.python_tools import analyze_python_structure, PythonStateKeys
 
 @pytest.mark.asyncio
-async def test_python_pipeline_complete_review():
-    """Test complete Python review pipeline."""
-    input_data = CodeReviewInput(
-        pr_metadata=PullRequestMetadata(...),
-        review_context=ReviewContext(
-            changed_files=[create_test_python_file()],
-            related_files=[],
-            test_files=[]
-        )
-    )
-    
-    result = await run_pipeline(python_review_pipeline, input_data)
-    
-    assert isinstance(result, CodeReviewOutput)
-    assert len(result.inline_comments) > 0
-    assert result.summary != ""
+async def test_python_structure_analysis_tool_execution():
+    """Test that Python structure analysis tool executes correctly."""
+    tool_context = MagicMock()
+    tool_context.state = {}
+
+    code = "def add(a, b): return a + b"
+    result = await analyze_python_structure(code, tool_context)
+
+    # Validate actual behavior
+    assert result["status"] == "success"
+    assert result["analysis"]["metrics"]["function_count"] == 1
+    assert PythonStateKeys.CODE_TO_REVIEW in tool_context.state
+    assert tool_context.state[PythonStateKeys.CODE_LINE_COUNT] == 1
 ```
 
 **What to Test:**
-- Full pipeline execution (analyzer → style → test → synthesizer)
-- Language detection and routing
-- Multi-language PR handling
-- State persistence across agents
-- Error propagation through pipeline
+- Tool execution with various inputs
+- State storage and retrieval between tools
+- Input preparation and parsing utilities
+- Language detection logic
+- Error handling (syntax errors, missing data, invalid input)
+- Edge cases (empty input, unknown files, malformed data)
+- Agent configuration and structure
 
 **Test Data:**
-- Use realistic PR payloads (see `tests/fixtures/`)
-- Include edge cases (empty PRs, large PRs, syntax errors)
+- Use realistic but minimal test data
+- Include edge cases (empty inputs, syntax errors, missing files)
 - Test both Python and TypeScript scenarios
+- Mock external dependencies (no real API calls)
+
+**Important:** Integration tests should NOT make real LLM API calls. Use mocked `ToolContext` objects. Real API tests belong in `tests/e2e/`.
 
 ### 3. End-to-End Tests (5% of tests)
 
 **Location:** `tests/e2e/`
 
-**Purpose:** Test complete system with real-world scenarios
+**Purpose:** Test complete system with real API calls to LLM models
 
 **Characteristics:**
-- Use real PR payload examples
-- Test full request/response cycle
-- Validate output schema compliance
-- Test with actual model calls (can be slow)
+- Make real API calls to Gemini models (slow - 20+ seconds per test)
+- Test full pipeline execution with actual LLM responses
+- Validate end-to-end behavior
+- Use realistic PR payload examples
+- Marked with `@pytest.mark.e2e` and `@pytest.mark.slow`
 
 **Example Structure:**
 ```python
-# tests/e2e/test_full_pr_review.py
+# tests/e2e/test_real_api_calls.py
 import pytest
 from app.agent import root_agent
 from google.adk.runners import Runner
 
 @pytest.mark.asyncio
-@pytest.mark.slow  # Mark slow tests
+@pytest.mark.e2e
+@pytest.mark.slow
 async def test_real_python_pr_review():
-    """Test complete review of a real Python PR."""
+    """Test complete review of a real Python PR with actual API calls."""
     payload = load_fixture("real_python_pr.json")
-    
+
     runner = Runner(agent=root_agent)
     result = await runner.run_async(
         new_message=create_message(payload),
         user_id="test_user",
         session_id="test_session"
     )
-    
+
     # Validate output structure
     output = parse_agent_output(result)
     assert output['overall_status'] in ['APPROVED', 'NEEDS_CHANGES', 'COMMENT']
@@ -177,17 +182,26 @@ async def test_real_python_pr_review():
 ```
 
 **What to Test:**
-- Complete PR review flow
+- Complete PR review flow with real LLM calls
 - Multi-file PRs
 - PRs with both Python and TypeScript
-- Error scenarios (malformed input, network issues)
 - Output format compliance
+- Real API integration validation
 
 **When to Run:**
 - Before major releases
-- In CI on main branch
+- In CI on main branch (with rate limiting)
 - Manually before deployment
-- Can be skipped in fast test runs
+- **NOT in regular test runs** - use `pytest -m "not e2e"` to skip
+
+**Running E2E Tests:**
+```bash
+# Run E2E tests explicitly
+pytest -m "e2e" tests/e2e/
+
+# Skip E2E tests (default for fast runs)
+pytest -m "not e2e"
+```
 
 ## Test Organization
 
@@ -250,10 +264,10 @@ def test_example():
     # Arrange - Set up test data
     code = "def hello(): pass"
     expected_functions = 1
-    
+
     # Act - Execute the function
     result = analyze_python_structure(code)
-    
+
     # Assert - Verify results
     assert result['function_count'] == expected_functions
 ```
@@ -320,9 +334,9 @@ def test_style_checker_with_mock():
             stdout="src/test.py:5:1: E302 expected 2 blank lines",
             returncode=1
         )
-        
+
         result = check_python_style("def test(): pass")
-        
+
         assert result['issue_count'] == 1
         assert result['issues'][0]['line'] == 5
 ```
@@ -389,7 +403,7 @@ Exclude from coverage:
 ```ini
 # .coveragerc
 [run]
-omit = 
+omit =
     */tests/*
     */__pycache__/*
     */venv/*
@@ -431,20 +445,32 @@ jobs:
 ### Test Execution Commands
 
 ```bash
-# Run all tests
-make test
+# Run all fast tests (unit + integration, excludes E2E)
+pytest -m "not e2e"
 
-# Run only fast tests
-pytest tests/unit tests/integration -m "not slow"
+# Run all tests including E2E (slow!)
+pytest
+
+# Run only unit tests
+pytest tests/unit
+
+# Run only integration tests (fast, no API calls)
+pytest tests/integration
+
+# Run E2E tests (real API calls - slow!)
+pytest -m "e2e" tests/e2e/
 
 # Run with coverage
-pytest --cov=app --cov-report=term-missing
+pytest --cov=app --cov-report=term-missing -m "not e2e"
 
 # Run specific test file
 pytest tests/unit/test_python_tools.py
 
 # Run specific test
 pytest tests/unit/test_python_tools.py::test_analyze_python_structure
+
+# Skip slow tests (includes E2E)
+pytest -m "not slow"
 ```
 
 ## Performance Testing
@@ -452,8 +478,8 @@ pytest tests/unit/test_python_tools.py::test_analyze_python_structure
 ### Latency Targets
 
 - **Unit tests**: <1s per test
-- **Integration tests**: <10s per test
-- **E2E tests**: <60s per test (includes model calls)
+- **Integration tests**: <1s per test (no API calls, uses mocks)
+- **E2E tests**: 20-60s per test (includes real model API calls)
 - **Full PR review**: <60s for typical PR (<10 files)
 
 ### Performance Benchmarks
@@ -469,7 +495,7 @@ def test_python_pipeline_latency():
     start = time.time()
     result = run_python_pipeline(test_input)
     duration = time.time() - start
-    
+
     assert duration < 30.0, f"Pipeline took {duration}s, target is <30s"
 ```
 
@@ -490,9 +516,9 @@ For production deployment, test with:
 async def test_language_detection_routing():
     """Test that root agent correctly routes to language pipelines."""
     input_data = create_multi_language_pr(['python', 'typescript'])
-    
+
     result = await run_agent(root_agent, input_data)
-    
+
     # Verify both pipelines were invoked
     assert 'python' in result.summary.lower()
     assert 'typescript' in result.summary.lower()
@@ -506,14 +532,14 @@ async def test_state_persistence_across_agents():
     """Verify state flows correctly through pipeline."""
     # Run first agent
     state_after_analyzer = await run_agent(code_analyzer, input_data)
-    
+
     # Run second agent with same state
     state_after_style = await run_agent(
-        style_checker, 
+        style_checker,
         input_data,
         initial_state=state_after_analyzer.state
     )
-    
+
     # Verify state was preserved
     assert 'code_analysis' in state_after_style.state
 ```
@@ -525,12 +551,12 @@ async def test_state_persistence_across_agents():
 async def test_pipeline_handles_syntax_errors():
     """Test pipeline gracefully handles syntax errors."""
     input_data = create_pr_with_syntax_error()
-    
+
     result = await run_pipeline(python_review_pipeline, input_data)
-    
+
     # Should still produce output, but flag the error
     assert result.overall_status == 'NEEDS_CHANGES'
-    assert any('syntax error' in c.body.lower() 
+    assert any('syntax error' in c.body.lower()
                for c in result.inline_comments)
 ```
 
@@ -555,9 +581,11 @@ async def test_pipeline_handles_syntax_errors():
 - Check for race conditions in async tests
 
 **Slow test execution:**
+- Integration tests should be fast (<1s) - if slow, you're likely making real API calls
+- Use `pytest -m "not e2e"` to skip E2E tests (which are slow by design)
 - Use `pytest -x` to stop on first failure
-- Mark slow tests and skip in fast runs
 - Use `pytest --lf` to run only failed tests
+- E2E tests are intentionally slow (real API calls) - only run when needed
 
 **Flaky tests:**
 - Look for non-deterministic behavior (random, time-based)
