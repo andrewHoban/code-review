@@ -22,6 +22,7 @@ import time
 from typing import Any
 
 import vertexai
+from vertexai import agent_engines
 
 
 def call_agent_with_retry(
@@ -33,8 +34,8 @@ def call_agent_with_retry(
     initial_delay: float = 1.0,
 ) -> dict[str, Any]:
     """Call agent with exponential backoff retry."""
-    # Initialize vertexai client
-    client = vertexai.Client(project=project_id, location=location)
+    # Initialize vertexai
+    vertexai.init(project=project_id, location=location)
 
     resource_name = (
         f"projects/{project_id}/locations/{location}/reasoningEngines/{agent_engine_id}"
@@ -45,11 +46,10 @@ def call_agent_with_retry(
 
     for attempt in range(max_retries):
         try:
-            # Get the deployed agent
-            agent = client.agent_engines.get(name=resource_name)
+            # Get the deployed agent using the direct module approach
+            agent = agent_engines.get(resource_name=resource_name)
 
             # Query the agent with the payload as input
-            # The agent.query() method expects 'input' parameter
             response = agent.query(input=json.dumps(payload))
 
             # Parse response - the response format may vary
