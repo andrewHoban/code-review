@@ -46,6 +46,23 @@ class ReviewMetrics(BaseModel):
     )
 
 
+class ModelUsageInfo(BaseModel):
+    """Information about which models were used during the review."""
+
+    agents: dict[str, dict[str, str]] = Field(
+        default_factory=dict,
+        description="Model usage by agent name",
+    )
+    fallbacks_used: list[str] = Field(
+        default_factory=list,
+        description="List of agents that used fallback models",
+    )
+    used_fallback: bool = Field(
+        default=False,
+        description="Whether any fallback models were used",
+    )
+
+
 class CodeReviewOutput(BaseModel):
     """Complete output from code review agent."""
 
@@ -57,3 +74,7 @@ class CodeReviewOutput(BaseModel):
         ..., description="Overall review status"
     )
     metrics: ReviewMetrics = Field(..., description="Review metrics")
+    model_usage: ModelUsageInfo = Field(
+        default_factory=lambda: ModelUsageInfo(),
+        description="Information about which models were used",
+    )

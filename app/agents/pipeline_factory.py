@@ -14,7 +14,7 @@
 
 """Factory for creating language-specific review pipelines."""
 
-from google.adk.agents import Agent, SequentialAgent
+from google.adk.agents import SequentialAgent
 from google.adk.tools import FunctionTool
 
 from app.config import (
@@ -25,6 +25,7 @@ from app.prompts.core_principles import CORE_PRINCIPLES
 from app.prompts.design_principles import DESIGN_PRINCIPLES
 from app.prompts.static_context import STATIC_REVIEW_CONTEXT
 from app.prompts.test_principles import TEST_PRINCIPLES
+from app.utils.model_router import create_routed_agent
 
 
 def create_review_pipeline(
@@ -58,9 +59,9 @@ def create_review_pipeline(
     # New pipeline: CodeAnalyzer (combined tools) → FeedbackReviewer (combined analysis)
 
     # Combined Code Analyzer Agent (structure + style checking in one agent)
-    code_analyzer = Agent(
+    code_analyzer = create_routed_agent(
         name=f"{language}CodeAnalyzer",
-        model=CODE_ANALYZER_MODEL,
+        primary_model=CODE_ANALYZER_MODEL,
         description=f"Analyzes {language} code structure, design quality, and style",
         instruction=_get_combined_analyzer_instruction(language, language_lower),
         tools=[analyzer_tool, style_tool],  # Both tools available
@@ -68,9 +69,9 @@ def create_review_pipeline(
     )
 
     # Combined Feedback Reviewer Agent (test analysis + synthesis in one agent)
-    feedback_reviewer = Agent(
+    feedback_reviewer = create_routed_agent(
         name=f"{language}FeedbackReviewer",
-        model=FEEDBACK_SYNTHESIZER_MODEL,
+        primary_model=FEEDBACK_SYNTHESIZER_MODEL,
         description=f"Analyzes test coverage and synthesizes comprehensive {language} review feedback",
         instruction=_get_combined_feedback_instruction(
             language, structure_summary_key, style_summary_key, test_summary_key

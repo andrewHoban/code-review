@@ -223,8 +223,8 @@ def print_deployment_success(
 @click.option(
     "--container-concurrency",
     type=int,
-    default=9,
-    help="Container concurrency (default: 9)",
+    default=1,
+    help="Container concurrency (default: 1)",
 )
 @click.option(
     "--num-workers",
@@ -375,7 +375,7 @@ def deploy_agent_engine_app(
         remote_agent = client.agent_engines.create(config=config)
 
     write_deployment_metadata(remote_agent)
-    print_deployment_success(remote_agent, location, project)
+    print_deployment_success(remote_agent, location, project or "unknown")
 
     return remote_agent
 

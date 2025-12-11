@@ -17,6 +17,7 @@
 
 import argparse
 import json
+import os
 import sys
 import threading
 import time
@@ -26,6 +27,76 @@ import vertexai
 from vertexai import agent_engines
 
 from app.utils.stream_extractor import coerce_review_output, extract_text_and_state
+
+
+def _is_resource_exhausted_error(err: Exception) -> bool:
+    msg = str(err)
+    return ("RESOURCE_EXHAUSTED" in msg) or ("429" in msg)
+
+
+def _resource_exhausted_response(err: Exception) -> dict[str, Any]:
+    # User asked for explicit messaging rather than generic fallback.
+    return {
+        "summary": (
+            "**Code review failed due to company token/quota restrictions (429 RESOURCE_EXHAUSTED).**\n\n"
+            "This run could not complete because Vertex AI rate-limited the model call.\n\n"
+            "- **What to do**: re-run later, reduce PR payload size, or request higher quota.\n"
+            "- **Diagnostic**: check Agent Engine logs for `RESOURCE_EXHAUSTED` / `429`."
+        ),
+        "inline_comments": [],
+        "overall_status": "COMMENT",
+        "metrics": {
+            "files_reviewed": 0,
+            "issues_found": 0,
+            "critical_issues": 0,
+            "warnings": 0,
+            "suggestions": 0,
+            "style_score": 0.0,
+        },
+        "error": {
+            "type": type(err).__name__,
+            "message": str(err),
+            "code": 429,
+            "status": "RESOURCE_EXHAUSTED",
+        },
+    }
+
+
+def _safe_jsonable(obj: Any) -> Any:
+    """Best-effort conversion to JSON-able structure for debug dumps."""
+    if obj is None:
+        return None
+    if isinstance(obj, str | int | float | bool):
+        return obj
+    if isinstance(obj, dict):
+        return {str(k): _safe_jsonable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_safe_jsonable(v) for v in obj]
+    # ADK / pydantic-ish
+    for method in ("model_dump", "to_dict"):
+        fn = getattr(obj, method, None)
+        if callable(fn):
+            try:
+                return _safe_jsonable(fn())
+            except Exception:
+                pass
+    return {"__type__": str(type(obj)), "__repr__": repr(obj)[:2000]}
+
+
+def _debug_dump_chunks(chunks: list[Any], output_path: str) -> None:
+    """Write a JSONL debug dump of chunks (bounded, safe)."""
+    try:
+        with open(output_path, "w") as f:
+            for i, chunk in enumerate(chunks):
+                record = {
+                    "i": i,
+                    "type": str(type(chunk)),
+                    "chunk": _safe_jsonable(chunk),
+                }
+                f.write(json.dumps(record) + "\n")
+        print(f"Debug: wrote chunk dump to {output_path}")
+    except Exception as e:
+        print(f"Debug: failed to write chunk dump: {e}")
 
 
 def call_agent_with_retry(
@@ -167,6 +238,10 @@ def call_agent_with_retry(
                 f"\nProcessing {len(response_chunks)} chunks to extract final response..."
             )
 
+            debug_dump_path = os.environ.get("CODE_REVIEW_DUMP_CHUNKS")
+            if debug_dump_path:
+                _debug_dump_chunks(response_chunks, debug_dump_path)
+
             combined_text, merged_state = extract_text_and_state(response_chunks)
             print(
                 f"Debug: Extracted text length={len(combined_text)}, "
@@ -176,6 +251,13 @@ def call_agent_with_retry(
 
         except Exception as e:
             last_error = e
+            if _is_resource_exhausted_error(e):
+                # Don't hide quota issues behind a generic fallback: return an explicit result
+                # so the workflow can post a meaningful comment.
+                print(
+                    f"Detected quota/resource exhaustion error: {type(e).__name__}: {e}"
+                )
+                return _resource_exhausted_response(e)
             if attempt < max_retries - 1:
                 print(f"Attempt {attempt + 1} failed: {e}. Retrying in {delay:.1f}s...")
                 time.sleep(delay)

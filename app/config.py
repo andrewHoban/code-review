@@ -18,10 +18,16 @@ import os
 
 # Model configuration
 # Note: gemini-3-pro-preview is not available in europe-west1
-# Using gemini-2.5-pro for all agents for consistent quality
+# Strategy: Use Gemini 2.5 Pro only for complex reasoning tasks
+#          Use free models (Codestral/Llama 4) for simple tasks
 
-# Language detection needs intelligence to handle edge cases
-LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", "gemini-2.5-pro")
+# Orchestrator: Simple routing task - use free model directly
+ORCHESTRATOR_MODEL = os.getenv(
+    "ORCHESTRATOR_MODEL", "publishers/mistral-ai/models/codestral"
+)
+
+# Language detection (legacy name, kept for compatibility)
+LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", ORCHESTRATOR_MODEL)
 
 # Code analysis requires complex reasoning - use 2.5-pro
 CODE_ANALYZER_MODEL = os.getenv("CODE_ANALYZER_MODEL", "gemini-2.5-pro")
@@ -34,6 +40,13 @@ TEST_ANALYZER_MODEL = os.getenv("TEST_ANALYZER_MODEL", "gemini-2.5-pro")
 
 # Feedback synthesis needs good reasoning - use 2.5-pro
 FEEDBACK_SYNTHESIZER_MODEL = os.getenv("FEEDBACK_SYNTHESIZER_MODEL", "gemini-2.5-pro")
+
+# Publisher: Simple JSON formatting - use free model directly (no advanced reasoning needed)
+PUBLISHER_MODEL = os.getenv("PUBLISHER_MODEL", "publishers/mistral-ai/models/codestral")
+
+# Fallback models (open source) - used when Gemini hits token/quota limits
+# These are automatically selected based on primary models
+FALLBACK_ENABLED = os.getenv("FALLBACK_ENABLED", "true").lower() == "true"
 
 # Review configuration
 MAX_INLINE_COMMENTS = int(os.getenv("MAX_INLINE_COMMENTS", "50"))

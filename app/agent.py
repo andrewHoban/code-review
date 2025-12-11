@@ -23,7 +23,8 @@ from google.adk.apps.app import App
 
 from app.agents.python_review_pipeline import python_review_pipeline
 from app.agents.typescript_review_pipeline import typescript_review_pipeline
-from app.config import FEEDBACK_SYNTHESIZER_MODEL, LANGUAGE_DETECTOR_MODEL
+from app.config import ORCHESTRATOR_MODEL, PUBLISHER_MODEL
+from app.utils.model_router import create_routed_agent
 from app.tools.language_detection import detect_languages_tool
 from app.tools.repo_context import (
     RepoContextStateKeys,
@@ -47,9 +48,10 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 # Orchestrator agent that detects languages and routes to pipelines.
 # This agent focuses on routing + delegating work; a final publisher agent
 # is responsible for emitting a single, postable review output.
-orchestrator_agent = Agent(
+# Uses free model (Codestral) directly - simple routing task doesn't need Gemini 2.5 Pro
+orchestrator_agent = create_routed_agent(
     name="CodeReviewOrchestrator",
-    model=LANGUAGE_DETECTOR_MODEL,
+    primary_model=ORCHESTRATOR_MODEL,
     description="Orchestrates code review by detecting languages and routing to appropriate pipelines",
     instruction="""Code review orchestrator for GitHub PRs.
 
@@ -74,9 +76,10 @@ Output: Do NOT attempt to format final PR comment text. The publisher will do th
 
 # Final publisher agent: emits one JSON object with Markdown in `summary`.
 # This keeps the GitHub posting side simple (extract final text + json.loads).
-publisher_agent = Agent(
+# Uses free model (Codestral) directly - simple JSON formatting doesn't need advanced reasoning
+publisher_agent = create_routed_agent(
     name="ReviewPublisher",
-    model=FEEDBACK_SYNTHESIZER_MODEL,
+    primary_model=PUBLISHER_MODEL,
     description="Formats the final PR review as a single JSON object containing Markdown summary",
     instruction="""You are the final publisher for an automated GitHub PR code review.
 
@@ -87,6 +90,7 @@ You MUST read prior results from state:
 - typescript_final_feedback (if present): markdown sections for TypeScript changes
 - pr_metadata (if present): contains title/description, etc.
 - changed_files (if present): list of changed files
+- model_fallbacks (if present): list of agents that used fallback models due to token limits
 
 Output contract (JSON only):
 {
@@ -113,7 +117,9 @@ Rules:
 - Set `inline_comments` to [] (no inline posting from the publisher).
 - Metrics can be best-effort estimates; if unknown, use zeros except `files_reviewed` which should be len(changed_files) when available.
 
-IMPORTANT: Output ONLY the JSON object. No surrounding text, no markdown fences.""",
+IMPORTANT: Output ONLY the JSON object. No surrounding text, no markdown fences.
+
+If model_fallbacks is present in state, append a note to the summary explaining that open source fallback models were used due to Gemini token/quota limits. Format: 'Note: This review used open source fallback models ([list agent names]) due to Gemini token limits. Review quality may be slightly reduced.'""",
     # Store the final output where clients expect it.
     output_key="code_review_output",
 )

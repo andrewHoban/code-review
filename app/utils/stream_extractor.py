@@ -16,6 +16,26 @@ import json
 from typing import Any
 
 
+def _strip_json_fence(text: str) -> str:
+    """If text is a ```json fenced block, extract the inner JSON."""
+    s = text.strip()
+    if not s.startswith("```"):
+        return s
+    # tolerate ```json or ```JSON
+    first_newline = s.find("\n")
+    if first_newline == -1:
+        return s
+    fence_header = s[:first_newline].strip().lower()
+    if fence_header not in ("```json", "```"):
+        return s
+    # find closing fence
+    closing = s.rfind("```")
+    if closing <= first_newline:
+        return s
+    inner = s[first_newline + 1 : closing].strip()
+    return inner
+
+
 def _as_dict(obj: Any) -> dict[str, Any] | None:
     if isinstance(obj, dict):
         return obj
@@ -40,19 +60,53 @@ def extract_text_parts(chunk: Any) -> list[str]:
 
     # Dict-shaped chunk
     if (d := _as_dict(chunk)) is not None:
+        # Vertex GenAI streaming-style shape:
+        # {"candidates":[{"content":{"parts":[{"text":"..."}]}}]}
+        candidates = d.get("candidates")
+        if isinstance(candidates, list):
+            out: list[str] = []
+            for cand in candidates:
+                if not isinstance(cand, dict):
+                    continue
+                cand_content = cand.get("content")
+                if isinstance(cand_content, dict):
+                    parts = cand_content.get("parts")
+                    if isinstance(parts, list):
+                        for part in parts:
+                            if isinstance(part, dict):
+                                text = part.get("text")
+                                if isinstance(text, str) and text:
+                                    out.append(text)
+            if out:
+                return out
+
         # Common case: {"content": {"parts": [{"text": "..."}]}}
         content = d.get("content")
         if isinstance(content, dict):
             parts = content.get("parts")
             if isinstance(parts, list):
-                out: list[str] = []
+                out_parts: list[str] = []
                 for part in parts:
                     if isinstance(part, dict):
                         text = part.get("text")
                         if isinstance(text, str) and text:
-                            out.append(text)
-                if out:
-                    return out
+                            out_parts.append(text)
+                if out_parts:
+                    return out_parts
+        # Some transports wrap multiple contents
+        if isinstance(content, list):
+            out = []
+            for c in content:
+                if isinstance(c, dict):
+                    parts = c.get("parts")
+                    if isinstance(parts, list):
+                        for part in parts:
+                            if isinstance(part, dict):
+                                text = part.get("text")
+                                if isinstance(text, str) and text:
+                                    out.append(text)
+            if out:
+                return out
 
         # Alternate: {"text": "..."}
         text = d.get("text")
@@ -162,7 +216,7 @@ def coerce_review_output(
     if combined_text:
         # If publisher outputs JSON-only, this should succeed.
         try:
-            parsed = json.loads(combined_text)
+            parsed = json.loads(_strip_json_fence(combined_text))
             if isinstance(parsed, dict) and (
                 "summary" in parsed or "overall_status" in parsed
             ):

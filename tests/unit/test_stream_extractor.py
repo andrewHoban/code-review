@@ -62,6 +62,17 @@ def test_coerce_parses_json_from_combined_text() -> None:
     assert output["metrics"]["files_reviewed"] == 2
 
 
+def test_coerce_parses_json_from_fenced_block() -> None:
+    combined_text = (
+        "```json\n"
+        '{ "summary": "Nice.", "inline_comments": [], "overall_status": "COMMENT",'
+        ' "metrics": {"files_reviewed": 1, "issues_found": 0, "critical_issues": 0, "warnings": 0, "suggestions": 0, "style_score": 0.0} }\n'
+        "```\n"
+    )
+    output = coerce_review_output(combined_text, merged_state={})
+    assert output["summary"] == "Nice."
+
+
 def test_coerce_wraps_plain_text_as_comment() -> None:
     output = coerce_review_output("plain markdown text", merged_state={})
     assert output["summary"] == "plain markdown text"
