@@ -83,13 +83,13 @@ Root Agent (gemini-3-pro-preview)
   ├─ Repository Context Tools
   │
   ├─ Python Review Pipeline (Sequential)
-  │   ├─ Code Analyzer (gemini-2.5-flash)
+  │   ├─ Code Analyzer (gemini-3-pro-preview)
   │   ├─ Style Checker (gemini-2.5-flash)
   │   ├─ Test Analyzer (gemini-3-pro-preview)
   │   └─ Feedback Synthesizer (gemini-2.5-pro)
   │
   └─ TypeScript Review Pipeline (Sequential)
-      ├─ Code Analyzer (gemini-2.5-flash)
+      ├─ Code Analyzer (gemini-3-pro-preview)
       ├─ Style Checker (gemini-2.5-flash)
       ├─ Test Analyzer (gemini-3-pro-preview)
       └─ Feedback Synthesizer (gemini-2.5-pro)
