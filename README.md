@@ -1,6 +1,6 @@
 # Code Review Agent
 
-A production-ready multi-language code review agent for GitHub PRs, built with Google's Agent Development Kit (ADK).
+A demo multi-language code review agent for GitHub PRs, built with Google's Agent Development Kit (ADK).
 
 ## Overview
 
