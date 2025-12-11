@@ -279,13 +279,13 @@ FEEDBACK STRUCTURE TO FOLLOW:
 If no issues found or only trivial LOW severity items:
 - Start each section with "LGTM" (looks good to me)
 - Keep it minimal - engineers appreciate brevity
-- Example: "## Correctness & Security\nLGTM\n\n## Design & Maintainability\nLGTM"
+- Example: "## Correctness & Security\\nLGTM\\n\\n## Design & Maintainability\\nLGTM"
 
 If issues are found:
 - Skip all praise and "Strengths" sections
 - Get straight to the issues
 - Be direct and specific about problems
-- Format: Issue → Evidence → Fix
+- Format: Issue -> Evidence -> Fix
 
 ## Summary
 One sentence: overall status and count of issues by severity.
@@ -315,4 +315,4 @@ Only if HIGH or MEDIUM issues exist:
 
 If no issues: Skip this section entirely.
 
-Remember: Engineers want brevity. No congratulations, no listing what's good. Focus on what needs fixing. Pass rate should be 60-80%.
+Remember: Engineers want brevity. No congratulations, no listing what's good. Focus on what needs fixing. Pass rate should be 60-80%."""
