@@ -23,6 +23,18 @@ from app.config import (
     STYLE_CHECKER_MODEL,
     TEST_ANALYZER_MODEL,
 )
+from app.prompts.analyzer_principles import (
+    CORRECTNESS_PRINCIPLES,
+    PERFORMANCE_PRINCIPLES,
+    SECURITY_PRINCIPLES,
+)
+from app.prompts.core_principles import CORE_PRINCIPLES
+from app.prompts.design_principles import DESIGN_PRINCIPLES
+from app.prompts.synthesis_principles import (
+    PRIORITIZATION_PRINCIPLES,
+    SEVERITY_PRINCIPLES,
+)
+from app.prompts.test_principles import TEST_PRINCIPLES
 
 
 def create_review_pipeline(
@@ -61,11 +73,11 @@ def create_review_pipeline(
         output_key=structure_summary_key,
     )
 
-    # Style Checker Agent
-    style_checker = Agent(
-        name=f"{language}StyleChecker",
+    # Design Quality Checker Agent (formerly StyleChecker)
+    design_checker = Agent(
+        name=f"{language}DesignChecker",
         model=STYLE_CHECKER_MODEL,
-        description=f"Checks {language} code style against style guidelines",
+        description=f"Checks {language} code design quality (SOLID, DRY, YAGNI, DDD) and style",
         instruction=_get_style_checker_instruction(
             language, language_lower, style_tool
         ),
@@ -96,10 +108,10 @@ def create_review_pipeline(
     # Create Sequential Pipeline
     return SequentialAgent(
         name=f"{language}ReviewPipeline",
-        description=f"Complete {language} code review pipeline with analysis, style checking, and feedback",
+        description=f"Complete {language} code review pipeline with analysis, design checking, and feedback",
         sub_agents=[
             code_analyzer,
-            style_checker,
+            design_checker,
             test_analyzer,
             feedback_synthesizer,
         ],
@@ -114,14 +126,22 @@ def _get_analyzer_instruction(language: str, language_lower: str) -> str:
         else "functions, classes, imports, and structural patterns"
     )
 
-    return f"""You are a {language} code analysis specialist responsible for understanding code structure.
+    return f"""You are a {language} code analysis specialist responsible for understanding code structure and identifying issues.
+
+{CORE_PRINCIPLES}
+
+{CORRECTNESS_PRINCIPLES}
+
+{SECURITY_PRINCIPLES}
+
+{PERFORMANCE_PRINCIPLES}
 
 Your task:
 1. Take the {language} code submitted by the user (it will be provided in the user message)
 2. Use the analyze_{language_lower}_structure tool to parse and analyze it
 3. Pass the EXACT code to your tool - do not modify, fix, or "improve" it
 4. Identify all {structure_elements}
-5. Note any syntax errors or structural issues
+5. Apply the above principles to find correctness, security, and performance issues
 6. Store the analysis in state for other agents to use
 
 CRITICAL:
@@ -129,6 +149,7 @@ CRITICAL:
 - Do not fix syntax errors, even if obvious
 - Do not add missing imports or fix formatting
 - The goal is to analyze what IS there, not what SHOULD be there
+- Apply universal principles with {language}-specific adaptations
 
 When calling the tool, pass the code as a string to the 'code' parameter.
 If the analysis fails, clearly report the error.
@@ -136,60 +157,57 @@ If the analysis fails, clearly report the error.
 Provide a clear summary including:
 - Number of {structure_elements.replace(" and ", ", ")}
 - Key structural observations
-- Any syntax errors or issues detected
+- Correctness, security, and performance issues found
 - Overall code organization assessment"""
 
 
 def _get_style_checker_instruction(
     language: str, language_lower: str, style_tool: FunctionTool
 ) -> str:
-    """Get instruction for style checker agent."""
-    style_guide = "PEP 8" if language_lower == "python" else "ESLint"
+    """Get instruction for design quality checker agent."""
     tool_name = (
         style_tool.name
         if hasattr(style_tool, "name")
         else f"check_{language_lower}_style"
     )
 
-    return f"""You are a {language} code style expert focused on {style_guide} compliance.
+    return f"""You are a {language} design quality expert focused on code maintainability and architecture.
+
+{CORE_PRINCIPLES}
+
+{DESIGN_PRINCIPLES}
 
 Your task:
-1. Use the {tool_name} tool to validate style compliance
+1. Use the {tool_name} tool to validate basic style compliance
 2. The tool will retrieve the ORIGINAL code from state automatically
-3. Report violations exactly as found
-4. Present the results clearly and confidently
+3. Apply design principles (SOLID, DRY, YAGNI, DDD) to identify design issues
+4. Report violations with evidence
 
 CRITICAL:
 - The tool checks the code EXACTLY as provided by the user
-- Do not suggest the code was modified or fixed
-- Report actual violations found in the original code
-- If there are style issues, they should be reported honestly
+- Focus on design quality (not just formatting)
+- Require concrete evidence for design violations
+- Apply universal principles with {language}-specific context
 
 Call the {tool_name} tool with an empty string for the code parameter,
 as the tool will retrieve the code from state automatically.
 
-When presenting results based on what the tool returns:
-- State the exact score from the tool results
-- If score >= 90: "Excellent style compliance!"
-- If score 70-89: "Good style with minor improvements needed"
-- If score 50-69: "Style needs attention"
-- If score < 50: "Significant style improvements needed"
-
-List the specific violations found (the tool will provide these):
-- Show line numbers, error codes, and messages
-- Focus on the top 10 most important issues
+When presenting results:
+- Report the style score from the tool
+- Identify design principle violations with evidence
+- Show specific code examples for each issue
+- Prioritize issues by actual harm (not personal preference)
 
 Format your response as:
-## Style Analysis Results
+## Design Quality Analysis
 - Style Score: [exact score]/100
-- Total Issues: [count]
-- Assessment: [your assessment based on score]
+- Design Issues Found: [count]
 
-## Top Style Issues
-[List issues with line numbers and descriptions]
+## Design Principle Violations
+[List issues with evidence, file:line references]
 
 ## Recommendations
-[Specific fixes for the most critical issues]"""
+[Specific actionable fixes prioritized by impact]"""
 
 
 def _get_test_analyzer_instruction(language: str, language_lower: str) -> str:
@@ -199,34 +217,34 @@ def _get_test_analyzer_instruction(language: str, language_lower: str) -> str:
         if language_lower == "typescript"
         else "pytest, unittest, etc."
     )
-    naming_convention = (
-        "test.* or *.test.ts for Jest"
-        if language_lower == "typescript"
-        else "test_* for pytest"
-    )
 
-    return f"""You are a testing specialist who analyzes test coverage and patterns for {language} code.
+    return f"""You are a testing specialist who analyzes test coverage and quality for {language} code.
+
+{CORE_PRINCIPLES}
+
+{TEST_PRINCIPLES}
 
 YOUR TASK:
 1. Review the code structure analysis from previous agents
 2. Check if test files are provided in the review context
 3. Analyze test coverage patterns ({test_frameworks})
-4. Identify missing test coverage for functions and classes
-5. Check for test best practices (naming, organization, assertions)
-6. Output a detailed analysis
+4. Apply universal test quality principles
+5. Identify missing test coverage for critical paths
+6. Check for test anti-patterns (rigged tests, no assertions, over-mocking)
+7. Output a detailed analysis
 
 TESTING METHODOLOGY:
-- Check if functions/classes have corresponding tests
-- Verify test naming conventions ({naming_convention})
-- Look for edge case coverage
-- Check for proper use of fixtures and mocks
-- Identify potential test gaps
+- Focus on test quality over coverage percentages
+- Check if tests would actually fail if code was broken
+- Verify critical paths (auth, payment, data loss) have tests
+- Look for meaningful assertions (not just "is not None")
+- Identify over-mocking of business logic
 
 Output your analysis including:
-- Test coverage assessment
-- Missing test coverage areas
-- Test quality observations
-- Recommendations for improving tests"""
+- Test quality assessment (not just coverage %)
+- Critical paths that need testing
+- Test anti-patterns found (with examples)
+- Recommendations prioritized by risk"""
 
 
 def _get_feedback_synthesizer_instruction(
@@ -238,40 +256,55 @@ def _get_feedback_synthesizer_instruction(
     """Get instruction for feedback synthesizer agent."""
     return f"""You are an expert {language} code reviewer providing constructive, educational feedback for PRs.
 
+{CORE_PRINCIPLES}
+
+{SEVERITY_PRINCIPLES}
+
+{PRIORITIZATION_PRINCIPLES}
+
 YOUR TASK:
 1. Review the analysis from previous agents in the pipeline
 2. Access state to get:
    - {structure_summary_key} (from CodeAnalyzer)
-   - {style_summary_key} (from StyleChecker)
+   - {style_summary_key} (from DesignChecker)
    - {test_summary_key} (from TestAnalyzer)
-3. Synthesize all findings into comprehensive feedback
-4. Generate inline comments for specific issues (with file path and line numbers)
-5. Provide actionable recommendations
+3. Apply severity levels to all findings
+4. Prioritize issues (security first, then correctness, then everything else)
+5. Synthesize into comprehensive feedback
+6. Generate inline comments for HIGH issues (with file path and line numbers)
+7. Provide actionable recommendations
 
 FEEDBACK STRUCTURE TO FOLLOW:
 
 ## 📊 Summary
-Provide an honest assessment. Be encouraging but truthful about problems found.
+Provide an honest assessment. Remember expected pass rate is 60-80%.
+Be encouraging but truthful about problems found.
 
 ## ✅ Strengths
 List 2-3 things done well, referencing specific code elements.
 
 ## 📈 Code Quality Analysis
 
-### Structure & Organization
-Comment on code organization, readability, and documentation based on structure analysis.
+### Correctness & Security (HIGH priority findings)
+List HIGH severity issues (expect 0-2 per review):
+- Security vulnerabilities with demonstrated exploits
+- Data loss/corruption scenarios
+- Crash/outage paths
 
-### Style Compliance
-Report the actual style score and any specific issues from style check.
+### Design & Maintainability (MEDIUM priority findings)
+List top 5 MEDIUM severity issues by impact
 
-### Test Coverage
-Report test coverage assessment and any gaps from test analysis.
+### Test Coverage & Quality (focus on critical paths)
+Report critical paths that need testing, test anti-patterns found
 
 ## 💡 Recommendations for Improvement
-Based on the analysis, provide specific actionable fixes.
-Prioritize by severity of issues.
+Prioritized list:
+1. Security issues (any severity)
+2. HIGH severity correctness issues
+3. Top 5 MEDIUM issues by impact
+4. Top 3 LOW quick wins (<5 min to fix)
 
 ## 🎯 Next Steps
-Prioritized action list based on severity of issues.
+Based on severity, what MUST be fixed vs what SHOULD be improved.
 
-Remember: Focus on actionable feedback that helps improve the code. Reference specific findings from previous agents."""
+Remember: Focus on real issues that cause actual harm. Pass rate should be 60-80%."""

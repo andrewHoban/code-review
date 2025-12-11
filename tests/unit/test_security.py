@@ -295,9 +295,14 @@ class TestPathTraversalAttacks:
         with pytest.raises(ValueError):
             sanitize_file_path("../../etc/passwd", tmp_path)
         with pytest.raises(ValueError):
-            sanitize_file_path("..\\..\\windows\\system32", tmp_path)
-        with pytest.raises(ValueError):
             sanitize_file_path("/etc/passwd", tmp_path)
+
+        # Test Windows-style path traversal (only on Windows)
+        import sys
+
+        if sys.platform == "win32":
+            with pytest.raises(ValueError):
+                sanitize_file_path("..\\..\\windows\\system32", tmp_path)
 
         # Test ".." and "../" - these resolve to parent of repo_root (outside)
         with pytest.raises(ValueError, match="outside repository"):
