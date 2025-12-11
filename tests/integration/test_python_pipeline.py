@@ -124,7 +124,11 @@ async def test_python_pipeline_structure_analysis(minimal_python_pr_input):
         user_id="test_user", session_id=session.id, app_name="test"
     )
     final_state = final_session.state
-    assert "python_code_analysis" in final_state or "python_structure_analysis_summary" in final_state
+    # Verify specific expected state key exists and has content
+    assert "python_structure_analysis_summary" in final_state
+    analysis = final_state["python_structure_analysis_summary"]
+    assert isinstance(analysis, str)
+    assert len(analysis) > 0
 
 
 @pytest.mark.asyncio
@@ -172,8 +176,8 @@ async def test_python_pipeline_with_real_payload():
         user_id="test_user", session_id=session.id, app_name="test"
     )
     final_state = final_session.state
-    # Should have at least structure analysis
-    assert (
-        "python_code_analysis" in final_state
-        or "python_structure_analysis_summary" in final_state
-    )
+    # Should have structure analysis with valid content
+    assert "python_structure_analysis_summary" in final_state
+    analysis = final_state["python_structure_analysis_summary"]
+    assert isinstance(analysis, str)
+    assert len(analysis) > 0

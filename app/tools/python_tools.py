@@ -26,6 +26,8 @@ import pycodestyle
 
 from google.adk.tools import FunctionTool, ToolContext
 
+from app.config import PYTHON_MAX_LINE_LENGTH, PYTHON_STYLE_WEIGHTS
+
 logger = logging.getLogger(__name__)
 
 # State keys for Python analysis
@@ -118,14 +120,9 @@ async def analyze_python_structure(
         }
 
 
-def _extract_python_structure(tree: ast.AST, code: str) -> Dict[str, Any]:
-    """
-    Helper function to extract structural information from Python AST.
-    Runs in thread pool for CPU-bound work.
-    """
+def _extract_functions(tree: ast.AST) -> tuple[List[Dict[str, Any]], List[str]]:
+    """Extract function information and docstrings from AST."""
     functions = []
-    classes = []
-    imports = []
     docstrings = []
 
     for node in ast.walk(tree):
@@ -149,7 +146,15 @@ def _extract_python_structure(tree: ast.AST, code: str) -> Dict[str, Any]:
                 if docstring:
                     docstrings.append(f"{node.name}: {docstring[:50]}...")
 
-        elif isinstance(node, ast.ClassDef):
+    return functions, docstrings
+
+
+def _extract_classes(tree: ast.AST) -> List[Dict[str, Any]]:
+    """Extract class information from AST."""
+    classes = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
             methods = []
             for item in node.body:
                 if isinstance(item, ast.FunctionDef):
@@ -166,7 +171,15 @@ def _extract_python_structure(tree: ast.AST, code: str) -> Dict[str, Any]:
             }
             classes.append(class_info)
 
-        elif isinstance(node, ast.Import):
+    return classes
+
+
+def _extract_imports(tree: ast.AST) -> List[Dict[str, Any]]:
+    """Extract import information from AST."""
+    imports = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(
                     {
@@ -185,20 +198,41 @@ def _extract_python_structure(tree: ast.AST, code: str) -> Dict[str, Any]:
                 }
             )
 
+    return imports
+
+
+def _calculate_metrics(
+    code: str, tree: ast.AST, functions: List[Dict[str, Any]], 
+    classes: List[Dict[str, Any]], imports: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """Calculate code metrics from extracted structure."""
+    return {
+        "line_count": len(code.splitlines()),
+        "function_count": len(functions),
+        "class_count": len(classes),
+        "import_count": len(imports),
+        "has_main": any(f["name"] == "main" for f in functions),
+        "has_if_main": "__main__" in code,
+        "avg_function_length": _calculate_avg_function_length(tree),
+    }
+
+
+def _extract_python_structure(tree: ast.AST, code: str) -> Dict[str, Any]:
+    """
+    Helper function to extract structural information from Python AST.
+    Runs in thread pool for CPU-bound work.
+    """
+    functions, docstrings = _extract_functions(tree)
+    classes = _extract_classes(tree)
+    imports = _extract_imports(tree)
+    metrics = _calculate_metrics(code, tree, functions, classes, imports)
+
     return {
         "functions": functions,
         "classes": classes,
         "imports": imports,
         "docstrings": docstrings,
-        "metrics": {
-            "line_count": len(code.splitlines()),
-            "function_count": len(functions),
-            "class_count": len(classes),
-            "import_count": len(imports),
-            "has_main": any(f["name"] == "main" for f in functions),
-            "has_if_main": "__main__" in code,
-            "avg_function_length": _calculate_avg_function_length(tree),
-        },
+        "metrics": metrics,
     }
 
 
@@ -278,56 +312,67 @@ async def check_python_style(
         }
 
 
-def _perform_python_style_check(code: str) -> Dict[str, Any]:
-    """Helper to perform Python style check in thread pool."""
+def _run_pycodestyle(tmp_path: str) -> str:
+    """Run pycodestyle and capture output."""
     import io
     import sys
 
+    old_stdout = sys.stdout
+    sys.stdout = captured_output = io.StringIO()
+
+    try:
+        style_guide = pycodestyle.StyleGuide(
+            quiet=False,  # We want output
+            max_line_length=PYTHON_MAX_LINE_LENGTH,
+            ignore=["E501", "W503"],  # Line length, line break before binary operator
+        )
+        style_guide.check_files([tmp_path])
+        return captured_output.getvalue()
+    finally:
+        sys.stdout = old_stdout
+
+
+def _parse_pycodestyle_output(output: str) -> List[Dict[str, Any]]:
+    """Parse pycodestyle output into issue list."""
+    issues = []
+
+    for line in output.strip().split("\n"):
+        if line and ":" in line:
+            parts = line.split(":", 4)
+            if len(parts) >= 4:
+                try:
+                    issues.append(
+                        {
+                            "line": int(parts[1]),
+                            "column": int(parts[2]),
+                            "code": parts[3].split()[0]
+                            if len(parts) > 3
+                            else "E000",
+                            "message": parts[3].strip()
+                            if len(parts) > 3
+                            else "Unknown error",
+                        }
+                    )
+                except (ValueError, IndexError):
+                    pass
+
+    return issues
+
+
+def _perform_python_style_check(code: str) -> Dict[str, Any]:
+    """Helper to perform Python style check in thread pool."""
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False
     ) as tmp:
         tmp.write(code)
         tmp_path = tmp.name
+        # Set restrictive permissions (read/write for owner only)
+        os.chmod(tmp_path, 0o600)
 
     try:
-        # Capture stdout to get pycodestyle output
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = io.StringIO()
-
-        style_guide = pycodestyle.StyleGuide(
-            quiet=False,  # We want output
-            max_line_length=100,
-            ignore=["E501", "W503"],  # Line length, line break before binary operator
-        )
-
-        result = style_guide.check_files([tmp_path])
-
-        # Restore stdout
-        sys.stdout = old_stdout
-
-        # Parse captured output
-        output = captured_output.getvalue()
-        issues = []
-
-        for line in output.strip().split("\n"):
-            if line and ":" in line:
-                parts = line.split(":", 4)
-                if len(parts) >= 4:
-                    try:
-                        issues.append(
-                            {
-                                "line": int(parts[1]),
-                                "column": int(parts[2]),
-                                "code": parts[3].split()[0]
-                                if len(parts) > 3
-                                else "E000",
-                                "message": parts[3].strip()
-                                if len(parts) > 3
-                                else "Unknown error",
-                            }
-                        )
-                    except (ValueError, IndexError):
-                        pass
+        # Run pycodestyle and parse output
+        output = _run_pycodestyle(tmp_path)
+        issues = _parse_pycodestyle_output(output)
 
         # Add naming convention checks
         try:
@@ -389,25 +434,10 @@ def _calculate_python_style_score(issues: List[Dict[str, Any]]) -> int:
     if not issues:
         return 100
 
-    # Define weights by error type
-    weights = {
-        "E1": 10,  # Indentation errors
-        "E2": 3,  # Whitespace errors
-        "E3": 5,  # Blank line errors
-        "E4": 8,  # Import errors
-        "E5": 5,  # Line length
-        "E7": 7,  # Statement errors
-        "E9": 10,  # Syntax errors
-        "W2": 2,  # Whitespace warnings
-        "W3": 2,  # Blank line warnings
-        "W5": 3,  # Line break warnings
-        "N8": 7,  # Naming conventions
-    }
-
     total_deduction = 0
     for issue in issues:
         code_prefix = issue["code"][:2] if len(issue["code"]) >= 2 else "E2"
-        weight = weights.get(code_prefix, 3)
+        weight = PYTHON_STYLE_WEIGHTS.get(code_prefix, 3)
         total_deduction += weight
 
     # Cap at 100 points deduction

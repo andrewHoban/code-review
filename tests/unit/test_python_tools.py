@@ -78,9 +78,10 @@ def long():
     tree = ast.parse(code)
     avg_length = _calculate_avg_function_length(tree)
 
-    # Should be average of 2 functions
-    assert avg_length > 0
-    assert avg_length < 10  # Reasonable upper bound
+    # short() is 2 lines (def + pass), long() is 5 lines (def + 4 statements)
+    # Average = (2 + 5) / 2 = 3.5
+    expected_avg = 3.5
+    assert avg_length == pytest.approx(expected_avg, abs=0.5)
 
 
 def test_calculate_python_style_score_no_issues():

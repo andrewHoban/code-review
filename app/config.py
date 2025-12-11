@@ -41,3 +41,22 @@ PYTHON_STYLE_IGNORE = os.getenv("PYTHON_STYLE_IGNORE", "E501,W503").split(
     ","
 )  # Line length, line break before binary operator
 TYPESCRIPT_STYLE_CONFIG = os.getenv("TYPESCRIPT_STYLE_CONFIG", ".eslintrc.json")
+
+# Style score weights for Python code review
+PYTHON_STYLE_WEIGHTS = {
+    "E1": 10,  # Indentation errors
+    "E2": 3,   # Whitespace errors
+    "E3": 5,   # Blank line errors
+    "E4": 8,   # Import errors
+    "E5": 5,   # Line length
+    "E7": 7,   # Statement errors
+    "E9": 10,  # Syntax errors
+    "W2": 2,   # Whitespace warnings
+    "W3": 2,   # Blank line warnings
+    "W5": 3,   # Line break warnings
+    "N8": 7,   # Naming conventions
+}
+
+# Maximum line length for style checking
+PYTHON_MAX_LINE_LENGTH = int(os.getenv("PYTHON_MAX_LINE_LENGTH", "100"))
+TYPESCRIPT_MAX_LINE_LENGTH = int(os.getenv("TYPESCRIPT_MAX_LINE_LENGTH", "120"))
