@@ -20,15 +20,15 @@ import logging
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List
+from typing import Any, cast
 
 import pycodestyle
-
 from google.adk.tools import FunctionTool, ToolContext
 
 from app.config import PYTHON_MAX_LINE_LENGTH, PYTHON_STYLE_WEIGHTS
 
 logger = logging.getLogger(__name__)
+
 
 # State keys for Python analysis
 class PythonStateKeys:
@@ -44,7 +44,7 @@ class PythonStateKeys:
 
 async def analyze_python_structure(
     code: str, tool_context: ToolContext
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyzes Python code structure using AST parsing.
 
@@ -79,9 +79,7 @@ async def analyze_python_structure(
         # Store code and analysis for other agents to access
         tool_context.state[PythonStateKeys.CODE_TO_REVIEW] = code
         tool_context.state[PythonStateKeys.CODE_ANALYSIS] = analysis
-        tool_context.state[PythonStateKeys.CODE_LINE_COUNT] = len(
-            code.splitlines()
-        )
+        tool_context.state[PythonStateKeys.CODE_LINE_COUNT] = len(code.splitlines())
 
         logger.info(
             f"Tool: Analysis complete - {analysis['metrics']['function_count']} "
@@ -97,7 +95,7 @@ async def analyze_python_structure(
         }
 
     except SyntaxError as e:
-        error_msg = f"Python syntax error: {str(e)} at line {e.lineno}"
+        error_msg = f"Python syntax error: {e!s} at line {e.lineno}"
         logger.error(f"Tool: {error_msg}")
 
         return {
@@ -111,7 +109,7 @@ async def analyze_python_structure(
         }
 
     except Exception as e:
-        error_msg = f"Python analysis failed: {str(e)}"
+        error_msg = f"Python analysis failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         return {
@@ -120,7 +118,7 @@ async def analyze_python_structure(
         }
 
 
-def _extract_functions(tree: ast.AST) -> tuple[List[Dict[str, Any]], List[str]]:
+def _extract_functions(tree: ast.AST) -> tuple[list[dict[str, Any]], list[str]]:
     """Extract function information and docstrings from AST."""
     functions = []
     docstrings = []
@@ -134,9 +132,7 @@ def _extract_functions(tree: ast.AST) -> tuple[List[Dict[str, Any]], List[str]]:
                 "has_docstring": ast.get_docstring(node) is not None,
                 "is_async": isinstance(node, ast.AsyncFunctionDef),
                 "decorators": [
-                    d.id
-                    for d in node.decorator_list
-                    if isinstance(d, ast.Name)
+                    d.id for d in node.decorator_list if isinstance(d, ast.Name)
                 ],
             }
             functions.append(func_info)
@@ -149,7 +145,7 @@ def _extract_functions(tree: ast.AST) -> tuple[List[Dict[str, Any]], List[str]]:
     return functions, docstrings
 
 
-def _extract_classes(tree: ast.AST) -> List[Dict[str, Any]]:
+def _extract_classes(tree: ast.AST) -> list[dict[str, Any]]:
     """Extract class information from AST."""
     classes = []
 
@@ -174,7 +170,7 @@ def _extract_classes(tree: ast.AST) -> List[Dict[str, Any]]:
     return classes
 
 
-def _extract_imports(tree: ast.AST) -> List[Dict[str, Any]]:
+def _extract_imports(tree: ast.AST) -> list[dict[str, Any]]:
     """Extract import information from AST."""
     imports = []
 
@@ -190,21 +186,27 @@ def _extract_imports(tree: ast.AST) -> List[Dict[str, Any]]:
                 )
         elif isinstance(node, ast.ImportFrom):
             imports.append(
-                {
-                    "module": node.module or "",
-                    "names": [alias.name for alias in node.names],
-                    "type": "from_import",
-                    "level": node.level,
-                }
+                cast(
+                    dict[str, Any],
+                    {
+                        "module": node.module or "",
+                        "names": [alias.name for alias in node.names],
+                        "type": "from_import",
+                        "level": node.level if node.level is not None else 0,
+                    },
+                )
             )
 
     return imports
 
 
 def _calculate_metrics(
-    code: str, tree: ast.AST, functions: List[Dict[str, Any]], 
-    classes: List[Dict[str, Any]], imports: List[Dict[str, Any]]
-) -> Dict[str, Any]:
+    code: str,
+    tree: ast.AST,
+    functions: list[dict[str, Any]],
+    classes: list[dict[str, Any]],
+    imports: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Calculate code metrics from extracted structure."""
     return {
         "line_count": len(code.splitlines()),
@@ -217,7 +219,7 @@ def _calculate_metrics(
     }
 
 
-def _extract_python_structure(tree: ast.AST, code: str) -> Dict[str, Any]:
+def _extract_python_structure(tree: ast.AST, code: str) -> dict[str, Any]:
     """
     Helper function to extract structural information from Python AST.
     Runs in thread pool for CPU-bound work.
@@ -243,17 +245,18 @@ def _calculate_avg_function_length(tree: ast.AST) -> float:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             if hasattr(node, "end_lineno") and hasattr(node, "lineno"):
-                length = node.end_lineno - node.lineno + 1
-                function_lengths.append(length)
+                end_lineno: int | None = getattr(node, "end_lineno", None)
+                lineno: int | None = getattr(node, "lineno", None)
+                if end_lineno is not None and lineno is not None:
+                    length = end_lineno - lineno + 1
+                    function_lengths.append(length)
 
     if function_lengths:
         return sum(function_lengths) / len(function_lengths)
     return 0.0
 
 
-async def check_python_style(
-    code: str, tool_context: ToolContext
-) -> Dict[str, Any]:
+async def check_python_style(code: str, tool_context: ToolContext) -> dict[str, Any]:
     """
     Checks Python code style compliance using pycodestyle (PEP 8).
 
@@ -286,9 +289,7 @@ async def check_python_style(
         # Store results in state
         tool_context.state[PythonStateKeys.STYLE_SCORE] = result["score"]
         tool_context.state[PythonStateKeys.STYLE_ISSUES] = result["issues"]
-        tool_context.state[PythonStateKeys.STYLE_ISSUE_COUNT] = result[
-            "issue_count"
-        ]
+        tool_context.state[PythonStateKeys.STYLE_ISSUE_COUNT] = result["issue_count"]
 
         logger.info(
             f"Tool: Style check complete - Score: {result['score']}/100, "
@@ -298,7 +299,7 @@ async def check_python_style(
         return result
 
     except Exception as e:
-        error_msg = f"Python style check failed: {str(e)}"
+        error_msg = f"Python style check failed: {e!s}"
         logger.error(f"Tool: {error_msg}", exc_info=True)
 
         # Set default values on error
@@ -332,7 +333,7 @@ def _run_pycodestyle(tmp_path: str) -> str:
         sys.stdout = old_stdout
 
 
-def _parse_pycodestyle_output(output: str) -> List[Dict[str, Any]]:
+def _parse_pycodestyle_output(output: str) -> list[dict[str, Any]]:
     """Parse pycodestyle output into issue list."""
     issues = []
 
@@ -345,9 +346,7 @@ def _parse_pycodestyle_output(output: str) -> List[Dict[str, Any]]:
                         {
                             "line": int(parts[1]),
                             "column": int(parts[2]),
-                            "code": parts[3].split()[0]
-                            if len(parts) > 3
-                            else "E000",
+                            "code": parts[3].split()[0] if len(parts) > 3 else "E000",
                             "message": parts[3].strip()
                             if len(parts) > 3
                             else "Unknown error",
@@ -359,11 +358,9 @@ def _parse_pycodestyle_output(output: str) -> List[Dict[str, Any]]:
     return issues
 
 
-def _perform_python_style_check(code: str) -> Dict[str, Any]:
+def _perform_python_style_check(code: str) -> dict[str, Any]:
     """Helper to perform Python style check in thread pool."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
         tmp.write(code)
         tmp_path = tmp.name
         # Set restrictive permissions (read/write for owner only)
@@ -398,7 +395,7 @@ def _perform_python_style_check(code: str) -> Dict[str, Any]:
             os.unlink(tmp_path)
 
 
-def _check_python_naming_conventions(tree: ast.AST) -> List[Dict[str, Any]]:
+def _check_python_naming_conventions(tree: ast.AST) -> list[dict[str, Any]]:
     """Check PEP 8 naming conventions."""
     naming_issues = []
 
@@ -429,7 +426,7 @@ def _check_python_naming_conventions(tree: ast.AST) -> List[Dict[str, Any]]:
     return naming_issues
 
 
-def _calculate_python_style_score(issues: List[Dict[str, Any]]) -> int:
+def _calculate_python_style_score(issues: list[dict[str, Any]]) -> int:
     """Calculate weighted style score based on violation severity."""
     if not issues:
         return 100

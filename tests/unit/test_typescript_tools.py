@@ -14,20 +14,22 @@
 
 """Unit tests for TypeScript analysis tools."""
 
-import pytest
+from typing import Any
 from unittest.mock import MagicMock
+
+import pytest
 
 from app.tools.typescript_tools import (
     TypeScriptStateKeys,
+    _calculate_typescript_style_score,
+    _extract_typescript_structure,
     analyze_typescript_structure,
     check_typescript_style,
-    _extract_typescript_structure,
-    _calculate_typescript_style_score,
 )
 
 
 @pytest.mark.asyncio
-async def test_analyze_typescript_structure_simple():
+async def test_analyze_typescript_structure_simple() -> None:
     """Test TypeScript structure analysis with simple code."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -54,7 +56,7 @@ class Calculator {
 
 
 @pytest.mark.asyncio
-async def test_analyze_typescript_structure_with_interfaces():
+async def test_analyze_typescript_structure_with_interfaces() -> None:
     """Test TypeScript structure analysis with interfaces."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -78,7 +80,7 @@ export interface Config {
 
 
 @pytest.mark.asyncio
-async def test_analyze_typescript_structure_with_imports():
+async def test_analyze_typescript_structure_with_imports() -> None:
     """Test TypeScript structure analysis with imports."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -96,7 +98,7 @@ import utils from './utils';
     assert len(analysis["imports"]) >= 1
 
 
-def test_extract_typescript_structure_functions():
+def test_extract_typescript_structure_functions() -> None:
     """Test extracting functions from TypeScript code."""
     code = """
 function test1() {}
@@ -110,7 +112,7 @@ export function test3() {}
     assert any(f["name"] == "test1" for f in result["functions"])
 
 
-def test_extract_typescript_structure_classes():
+def test_extract_typescript_structure_classes() -> None:
     """Test extracting classes from TypeScript code."""
     code = """
 class MyClass {}
@@ -123,7 +125,7 @@ export class AnotherClass extends BaseClass {}
     assert any(c["name"] == "MyClass" for c in result["classes"])
 
 
-def test_extract_typescript_structure_exports():
+def test_extract_typescript_structure_exports() -> None:
     """Test extracting exports from TypeScript code."""
     code = """
 export function exportedFunc() {}
@@ -138,7 +140,7 @@ export default class DefaultClass {}
 
 
 @pytest.mark.asyncio
-async def test_check_typescript_style_pattern_based():
+async def test_check_typescript_style_pattern_based() -> None:
     """Test TypeScript style checking using pattern matching."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -153,14 +155,14 @@ async def test_check_typescript_style_pattern_based():
     assert 0 <= result["score"] <= 100
 
 
-def test_calculate_typescript_style_score_no_issues():
+def test_calculate_typescript_style_score_no_issues() -> None:
     """Test style score calculation with no issues."""
-    issues = []
+    issues: list[dict[str, Any]] = []
     score = _calculate_typescript_style_score(issues)
     assert score == 100
 
 
-def test_calculate_typescript_style_score_with_issues():
+def test_calculate_typescript_style_score_with_issues() -> None:
     """Test style score calculation with issues."""
     issues = [
         {"code": "E501", "line": 5},  # Error-level
@@ -172,7 +174,7 @@ def test_calculate_typescript_style_score_with_issues():
 
 
 @pytest.mark.asyncio
-async def test_analyze_typescript_structure_stores_in_state():
+async def test_analyze_typescript_structure_stores_in_state() -> None:
     """Test that analysis results are stored in state."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -187,7 +189,7 @@ async def test_analyze_typescript_structure_stores_in_state():
 
 
 @pytest.mark.asyncio
-async def test_check_typescript_style_stores_in_state():
+async def test_check_typescript_style_stores_in_state() -> None:
     """Test that style check results are stored in state."""
     tool_context = MagicMock()
     tool_context.state = {}

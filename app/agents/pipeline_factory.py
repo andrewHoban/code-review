@@ -66,7 +66,9 @@ def create_review_pipeline(
         name=f"{language}StyleChecker",
         model=STYLE_CHECKER_MODEL,
         description=f"Checks {language} code style against style guidelines",
-        instruction=_get_style_checker_instruction(language, language_lower, style_tool),
+        instruction=_get_style_checker_instruction(
+            language, language_lower, style_tool
+        ),
         tools=[style_tool],
         output_key=style_summary_key,
     )
@@ -143,7 +145,11 @@ def _get_style_checker_instruction(
 ) -> str:
     """Get instruction for style checker agent."""
     style_guide = "PEP 8" if language_lower == "python" else "ESLint"
-    tool_name = style_tool.name if hasattr(style_tool, "name") else f"check_{language_lower}_style"
+    tool_name = (
+        style_tool.name
+        if hasattr(style_tool, "name")
+        else f"check_{language_lower}_style"
+    )
 
     return f"""You are a {language} code style expert focused on {style_guide} compliance.
 

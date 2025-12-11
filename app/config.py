@@ -45,16 +45,16 @@ TYPESCRIPT_STYLE_CONFIG = os.getenv("TYPESCRIPT_STYLE_CONFIG", ".eslintrc.json")
 # Style score weights for Python code review
 PYTHON_STYLE_WEIGHTS = {
     "E1": 10,  # Indentation errors
-    "E2": 3,   # Whitespace errors
-    "E3": 5,   # Blank line errors
-    "E4": 8,   # Import errors
-    "E5": 5,   # Line length
-    "E7": 7,   # Statement errors
+    "E2": 3,  # Whitespace errors
+    "E3": 5,  # Blank line errors
+    "E4": 8,  # Import errors
+    "E5": 5,  # Line length
+    "E7": 7,  # Statement errors
     "E9": 10,  # Syntax errors
-    "W2": 2,   # Whitespace warnings
-    "W3": 2,   # Blank line warnings
-    "W5": 3,   # Line break warnings
-    "N8": 7,   # Naming conventions
+    "W2": 2,  # Whitespace warnings
+    "W3": 2,  # Blank line warnings
+    "W5": 3,  # Line break warnings
+    "N8": 7,  # Naming conventions
 }
 
 # Maximum line length for style checking

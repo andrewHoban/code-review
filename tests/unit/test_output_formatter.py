@@ -14,13 +14,13 @@
 
 """Unit tests for output formatter."""
 
-import pytest
+from typing import Any
 from unittest.mock import MagicMock
 
 from app.tools.output_formatter import format_review_output
 
 
-def test_format_review_output_with_critical_issues():
+def test_format_review_output_with_critical_issues() -> None:
     """Test output formatting with critical issues."""
     tool_context = MagicMock()
     tool_context.state = {"python_style_score": 85.0}
@@ -55,7 +55,7 @@ def test_format_review_output_with_critical_issues():
     assert len(output["inline_comments"]) == 2
 
 
-def test_format_review_output_with_warnings_only():
+def test_format_review_output_with_warnings_only() -> None:
     """Test output formatting with warnings only."""
     tool_context = MagicMock()
     tool_context.state = {"typescript_style_score": 90.0}
@@ -80,13 +80,13 @@ def test_format_review_output_with_warnings_only():
     assert output["metrics"]["warnings"] == 1
 
 
-def test_format_review_output_approved():
+def test_format_review_output_approved() -> None:
     """Test output formatting with no issues (approved)."""
     tool_context = MagicMock()
     tool_context.state = {"python_style_score": 100.0}
 
     summary = "All good!"
-    issues = []
+    issues: list[dict[str, Any]] = []
 
     result = format_review_output(summary, issues, tool_context)
 
@@ -97,13 +97,13 @@ def test_format_review_output_approved():
     assert output["metrics"]["critical_issues"] == 0
 
 
-def test_format_review_output_with_suggestions():
+def test_format_review_output_with_suggestions() -> None:
     """Test output formatting with suggestions."""
     tool_context = MagicMock()
     tool_context.state = {}
 
     summary = "Test summary"
-    issues = [
+    issues: list[dict[str, Any]] = [
         {
             "file": "test.py",
             "line": 5,
@@ -121,13 +121,13 @@ def test_format_review_output_with_suggestions():
     assert output["overall_status"] == "COMMENT"
 
 
-def test_format_review_output_style_score_from_state():
+def test_format_review_output_style_score_from_state() -> None:
     """Test that style score is retrieved from state."""
     tool_context = MagicMock()
     tool_context.state = {"python_style_score": 75.5}
 
     summary = "Test"
-    issues = []
+    issues: list[dict[str, Any]] = []
 
     result = format_review_output(summary, issues, tool_context)
 
@@ -136,7 +136,7 @@ def test_format_review_output_style_score_from_state():
     assert output["metrics"]["style_score"] == 75.5
 
 
-def test_format_review_output_files_reviewed_from_state():
+def test_format_review_output_files_reviewed_from_state() -> None:
     """Test that files_reviewed uses state value when available."""
     tool_context = MagicMock()
     tool_context.state = {"files_reviewed": 5}
@@ -151,7 +151,7 @@ def test_format_review_output_files_reviewed_from_state():
     assert output["metrics"]["files_reviewed"] == 5
 
 
-def test_format_review_output_default_severity():
+def test_format_review_output_default_severity() -> None:
     """Test that default severity is 'info' when not specified."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -173,13 +173,13 @@ def test_format_review_output_default_severity():
     assert output["inline_comments"][0]["severity"] == "info"
 
 
-def test_format_review_output_stores_in_state():
+def test_format_review_output_stores_in_state() -> None:
     """Test that formatted output is stored in state."""
     tool_context = MagicMock()
     tool_context.state = {}
 
     summary = "Test"
-    issues = []
+    issues: list[dict[str, Any]] = []
 
     format_review_output(summary, issues, tool_context)
 

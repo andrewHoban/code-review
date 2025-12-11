@@ -14,17 +14,18 @@
 
 """Unit tests for error handling in code review tools."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from app.tools.python_tools import analyze_python_structure, PythonStateKeys
+import pytest
+
 from app.tools.language_detection import detect_languages
-from app.tools.typescript_tools import check_typescript_style, TypeScriptStateKeys
+from app.tools.python_tools import analyze_python_structure
+from app.tools.typescript_tools import check_typescript_style
 from app.utils.input_preparation import parse_review_input
 
 
 @pytest.mark.asyncio
-async def test_analyze_python_structure_empty_code():
+async def test_analyze_python_structure_empty_code() -> None:
     """Test handling of empty code string."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -36,7 +37,7 @@ async def test_analyze_python_structure_empty_code():
 
 
 @pytest.mark.asyncio
-async def test_analyze_python_structure_no_code_in_state():
+async def test_analyze_python_structure_no_code_in_state() -> None:
     """Test handling when no code is provided and not in state."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -48,7 +49,7 @@ async def test_analyze_python_structure_no_code_in_state():
 
 
 @pytest.mark.asyncio
-async def test_analyze_python_structure_syntax_error():
+async def test_analyze_python_structure_syntax_error() -> None:
     """Test handling of Python syntax errors."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -64,7 +65,7 @@ async def test_analyze_python_structure_syntax_error():
     assert "line" in result["syntax_error"]
 
 
-def test_detect_languages_empty_list():
+def test_detect_languages_empty_list() -> None:
     """Test language detection with empty file list."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -76,7 +77,7 @@ def test_detect_languages_empty_list():
     assert result["language_files"] == {}
 
 
-def test_detect_languages_invalid_file_path():
+def test_detect_languages_invalid_file_path() -> None:
     """Test language detection with invalid file paths."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -91,7 +92,7 @@ def test_detect_languages_invalid_file_path():
     assert len(result["languages"]) == 0
 
 
-def test_detect_languages_none_path():
+def test_detect_languages_none_path() -> None:
     """Test language detection with None path."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -105,7 +106,7 @@ def test_detect_languages_none_path():
 
 
 @pytest.mark.asyncio
-async def test_check_typescript_style_empty_code():
+async def test_check_typescript_style_empty_code() -> None:
     """Test TypeScript style check with empty code."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -117,7 +118,7 @@ async def test_check_typescript_style_empty_code():
 
 
 @pytest.mark.asyncio
-async def test_check_typescript_style_no_code_in_state():
+async def test_check_typescript_style_no_code_in_state() -> None:
     """Test TypeScript style check when no code in state."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -129,7 +130,7 @@ async def test_check_typescript_style_no_code_in_state():
 
 
 @pytest.mark.asyncio
-async def test_check_typescript_style_subprocess_timeout():
+async def test_check_typescript_style_subprocess_timeout() -> None:
     """Test TypeScript style check handles subprocess timeout."""
     tool_context = MagicMock()
     tool_context.state = {}
@@ -149,13 +150,13 @@ async def test_check_typescript_style_subprocess_timeout():
         assert "score" in result
 
 
-def test_parse_review_input_empty_string():
+def test_parse_review_input_empty_string() -> None:
     """Test parsing empty input string."""
     with pytest.raises(ValueError, match="No JSON object found"):
         parse_review_input("")
 
 
-def test_parse_review_input_invalid_json():
+def test_parse_review_input_invalid_json() -> None:
     """Test parsing invalid JSON."""
     invalid_json = "{ invalid json }"
 
@@ -163,7 +164,7 @@ def test_parse_review_input_invalid_json():
         parse_review_input(invalid_json)
 
 
-def test_parse_review_input_malformed_json():
+def test_parse_review_input_malformed_json() -> None:
     """Test parsing malformed JSON."""
     malformed = '{"pr_metadata": {invalid}'
 
@@ -171,7 +172,7 @@ def test_parse_review_input_malformed_json():
         parse_review_input(malformed)
 
 
-def test_parse_review_input_no_json_object():
+def test_parse_review_input_no_json_object() -> None:
     """Test parsing text with no JSON object."""
     text_only = "This is just plain text with no JSON"
 
@@ -179,7 +180,7 @@ def test_parse_review_input_no_json_object():
         parse_review_input(text_only)
 
 
-def test_parse_review_input_incomplete_json():
+def test_parse_review_input_incomplete_json() -> None:
     """Test parsing incomplete JSON (missing closing brace)."""
     incomplete = '{"pr_metadata": {"pr_number": 1}'
 

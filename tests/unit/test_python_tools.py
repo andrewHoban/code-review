@@ -14,6 +14,9 @@
 
 """Unit tests for Python analysis tools."""
 
+import ast
+from typing import Any
+
 import pytest
 
 from app.tools.python_tools import (
@@ -21,10 +24,9 @@ from app.tools.python_tools import (
     _calculate_python_style_score,
     _extract_python_structure,
 )
-import ast
 
 
-def test_extract_python_structure_simple_function():
+def test_extract_python_structure_simple_function() -> None:
     """Test AST analysis of a simple Python function."""
     code = """
 def add(a, b):
@@ -47,7 +49,7 @@ def add(a, b):
     assert result["metrics"]["class_count"] == 0
 
 
-def test_extract_python_structure_with_class():
+def test_extract_python_structure_with_class() -> None:
     """Test AST analysis with a class."""
     code = """
 class Calculator:
@@ -63,7 +65,7 @@ class Calculator:
     assert result["metrics"]["class_count"] == 1
 
 
-def test_calculate_avg_function_length():
+def test_calculate_avg_function_length() -> None:
     """Test average function length calculation."""
     code = """
 def short():
@@ -84,14 +86,14 @@ def long():
     assert avg_length == pytest.approx(expected_avg, abs=0.5)
 
 
-def test_calculate_python_style_score_no_issues():
+def test_calculate_python_style_score_no_issues() -> None:
     """Test style score calculation with no issues."""
-    issues = []
+    issues: list[dict[str, Any]] = []
     score = _calculate_python_style_score(issues)
     assert score == 100
 
 
-def test_calculate_python_style_score_with_issues():
+def test_calculate_python_style_score_with_issues() -> None:
     """Test style score calculation with issues."""
     issues = [
         {"code": "E302", "line": 5},  # Blank line error (weight 5)
@@ -102,7 +104,7 @@ def test_calculate_python_style_score_with_issues():
     assert score >= 0
 
 
-def test_extract_python_structure_imports():
+def test_extract_python_structure_imports() -> None:
     """Test import extraction."""
     code = """
 import os

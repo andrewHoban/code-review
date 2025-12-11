@@ -15,9 +15,9 @@
 """Integration tests for Python review pipeline."""
 
 import json
-import pytest
 from pathlib import Path
 
+import pytest
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -28,14 +28,13 @@ from app.models.input_schema import (
     ChangedFile,
     CodeReviewInput,
     PullRequestMetadata,
-    RelatedFile,
     RepositoryInfo,
     ReviewContext,
 )
 
 
 @pytest.fixture
-def sample_python_code():
+def sample_python_code() -> str:
     """Sample Python code for testing."""
     return """def add(a, b):
     \"\"\"Add two numbers.\"\"\"
@@ -48,7 +47,7 @@ class Calculator:
 
 
 @pytest.fixture
-def minimal_python_pr_input(sample_python_code):
+def minimal_python_pr_input(sample_python_code: str) -> CodeReviewInput:
     """Minimal PR input for Python review."""
     return CodeReviewInput(
         pr_metadata=PullRequestMetadata(
@@ -89,21 +88,19 @@ def minimal_python_pr_input(sample_python_code):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_python_pipeline_structure_analysis(minimal_python_pr_input):
+async def test_python_pipeline_structure_analysis(
+    minimal_python_pr_input: CodeReviewInput,
+) -> None:
     """Test that Python pipeline performs structure analysis."""
     session_service = InMemorySessionService()
-    session = session_service.create_session_sync(
-        user_id="test_user", app_name="test"
-    )
+    session = session_service.create_session_sync(user_id="test_user", app_name="test")
     runner = Runner(
         agent=python_review_pipeline, session_service=session_service, app_name="test"
     )
 
     # Convert input to message
     input_json = minimal_python_pr_input.model_dump_json()
-    message = types.Content(
-        role="user", parts=[types.Part.from_text(text=input_json)]
-    )
+    message = types.Content(role="user", parts=[types.Part.from_text(text=input_json)])
 
     # Run pipeline
     events = list(
@@ -133,7 +130,7 @@ async def test_python_pipeline_structure_analysis(minimal_python_pr_input):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_python_pipeline_with_real_payload():
+async def test_python_pipeline_with_real_payload() -> None:
     """Test Python pipeline with real payload from fixtures."""
     # Load fixture
     fixture_path = Path(__file__).parent.parent / "fixtures" / "python_simple_pr.json"
@@ -146,17 +143,13 @@ async def test_python_pipeline_with_real_payload():
     input_data = CodeReviewInput.model_validate(payload_data)
 
     session_service = InMemorySessionService()
-    session = session_service.create_session_sync(
-        user_id="test_user", app_name="test"
-    )
+    session = session_service.create_session_sync(user_id="test_user", app_name="test")
     runner = Runner(
         agent=python_review_pipeline, session_service=session_service, app_name="test"
     )
 
     input_json = input_data.model_dump_json()
-    message = types.Content(
-        role="user", parts=[types.Part.from_text(text=input_json)]
-    )
+    message = types.Content(role="user", parts=[types.Part.from_text(text=input_json)])
 
     events = list(
         runner.run(
