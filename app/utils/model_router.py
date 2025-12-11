@@ -15,10 +15,12 @@
 """Reusable model router that automatically falls back to secondary model on failure."""
 
 import logging
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from google.adk.agents import Agent
 from google.adk.events import Event
+from pydantic import PrivateAttr
 
 from app.config import FALLBACK_ENABLED
 from app.utils.model_fallback import get_fallback_model, is_token_quota_error
@@ -107,6 +109,8 @@ class RoutedAgent(Agent):
     when primary model hits token/quota limits.
     """
 
+    _router: ModelRouter = PrivateAttr()
+
     def __init__(
         self,
         name: str,
@@ -123,95 +127,78 @@ class RoutedAgent(Agent):
             secondary_model: Secondary fallback model (auto-selected if None)
             **agent_kwargs: Additional arguments passed to Agent
         """
-        # Store router in __dict__ to bypass Pydantic validation
         router = ModelRouter(primary_model, secondary_model)
+        # Initialize with primary model, then attach router as a private attribute.
+        # (Setting it before `super().__init__` can be wiped by Pydantic model init.)
+        super().__init__(name=name, model=router.get_model(), **agent_kwargs)
         object.__setattr__(self, "_router", router)
 
-        # Initialize with primary model
-        super().__init__(name=name, model=router.get_model(), **agent_kwargs)
+    async def _run_async_impl(self, ctx: Any) -> AsyncGenerator[Event, None]:
+        """Run the agent with automatic fallback on token/quota errors.
 
-    async def _run_async_impl(self, invocation_context: Any, actions: Any) -> Event:
+        Note: ADK's `Agent._run_async_impl` signature is `(self, ctx) -> AsyncGenerator[Event, None]`.
+        Older/internal variants may pass additional args; we intentionally match the current
+        public signature used by `Runner`.
         """
-        Run the agent with automatic fallback on token/quota errors.
 
-        Args:
-            invocation_context: The invocation context
-            actions: Event actions
-
-        Returns:
-            Event from agent execution
-        """
-        # Try primary model first
         router = self._router
-        try:
+
+        def _record_fallback_in_state() -> None:
+            session = getattr(ctx, "session", None)
+            state = getattr(session, "state", None) if session is not None else None
+            if not isinstance(state, dict):
+                return
+            model_fallbacks = state.setdefault("model_fallbacks", [])
+            if not isinstance(model_fallbacks, list):
+                return
+            model_fallbacks.append(
+                {
+                    "agent": self.name,
+                    "primary": router.primary_model,
+                    "fallback": router.secondary_model,
+                }
+            )
+
+        async def _run_stream() -> AsyncGenerator[Event, None]:
             self.model = router.get_model()
             logger.debug(f"Agent {self.name} using model: {self.model}")
-            result = await super()._run_async_impl(invocation_context, actions)
+            async for event in super()._run_async_impl(ctx):
+                yield event
 
-            # Store fallback info in state if fallback was used
+        # Try primary model first
+        try:
+            async for event in _run_stream():
+                yield event
             if router.used_fallback:
-                if hasattr(invocation_context, "session") and hasattr(
-                    invocation_context.session, "state"
-                ):
-                    state = invocation_context.session.state
-                    if "model_fallbacks" not in state:
-                        state["model_fallbacks"] = []
-                    state["model_fallbacks"].append(
-                        {
-                            "agent": self.name,
-                            "primary": router.primary_model,
-                            "fallback": router.secondary_model,
-                        }
-                    )
-
-            return result
-
+                _record_fallback_in_state()
+            return
         except Exception as e:
-            # Check if we should fall back
-            if router.should_fallback(e):
-                router.record_fallback()
-
-                # Switch to secondary model and retry
-                try:
-                    self.model = router.get_model()
-                    logger.info(
-                        f"Agent {self.name} retrying with fallback model: {self.model}"
-                    )
-                    result = await super()._run_async_impl(invocation_context, actions)
-
-                    # Store fallback info in state
-                    if hasattr(invocation_context, "session") and hasattr(
-                        invocation_context.session, "state"
-                    ):
-                        state = invocation_context.session.state
-                        if "model_fallbacks" not in state:
-                            state["model_fallbacks"] = []
-                        state["model_fallbacks"].append(
-                            {
-                                "agent": self.name,
-                                "primary": router.primary_model,
-                                "fallback": router.secondary_model,
-                            }
-                        )
-
-                    return result
-
-                except Exception as fallback_error:
-                    logger.error(
-                        f"Agent {self.name} failed with both primary ({router.primary_model}) "
-                        f"and secondary ({router.secondary_model}) models. "
-                        f"Original error: {e}. Fallback error: {fallback_error}"
-                    )
-                    # Re-raise the original error with context
-                    raise RuntimeError(
-                        f"Agent {self.name} failed with both models. "
-                        f"Primary ({router.primary_model}) error: {e}. "
-                        f"Secondary ({router.secondary_model}) error: {fallback_error}"
-                    ) from fallback_error
-            else:
-                # Not a token/quota error, re-raise
+            if not router.should_fallback(e):
                 logger.error(f"Agent {self.name} failed with non-quota error: {e}")
                 raise
+
+            router.record_fallback()
+
+            # Switch to secondary model and retry
+            try:
+                logger.info(
+                    f"Agent {self.name} retrying with fallback model: {router.get_model()}"
+                )
+                async for event in _run_stream():
+                    yield event
+                _record_fallback_in_state()
+                return
+            except Exception as fallback_error:
+                logger.error(
+                    f"Agent {self.name} failed with both primary ({router.primary_model}) "
+                    f"and secondary ({router.secondary_model}) models. "
+                    f"Original error: {e}. Fallback error: {fallback_error}"
+                )
+                raise RuntimeError(
+                    f"Agent {self.name} failed with both models. "
+                    f"Primary ({router.primary_model}) error: {e}. "
+                    f"Secondary ({router.secondary_model}) error: {fallback_error}"
+                ) from fallback_error
 
 
 def create_routed_agent(

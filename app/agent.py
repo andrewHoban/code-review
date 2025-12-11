@@ -117,7 +117,10 @@ Rules:
 - Set `inline_comments` to [] (no inline posting from the publisher).
 - Metrics can be best-effort estimates; if unknown, use zeros except `files_reviewed` which should be len(changed_files) when available.
 
-IMPORTANT: Output ONLY the JSON object. No surrounding text, no markdown fences.
+IMPORTANT:
+- You MUST output the JSON object as text in your response. The JSON will be automatically saved to state, but you must produce it as text output.
+- Output ONLY the JSON object. No surrounding text, no markdown fences, no explanations.
+- The JSON object you output will be streamed to the client, so it must be valid JSON that can be parsed.
 
 If model_fallbacks is present in state, append a note to the summary explaining that open source fallback models were used due to Gemini token/quota limits. Format: 'Note: This review used open source fallback models ([list agent names]) due to Gemini token limits. Review quality may be slightly reduced.'""",
     # Store the final output where clients expect it.

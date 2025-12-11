@@ -7,8 +7,8 @@
     "author": "developer",
     "base_branch": "main",
     "head_branch": "feature/auth",
-    "base_sha": "abc123",
-    "head_sha": "def456"
+    "base_sha": null,
+    "head_sha": null
   },
   "review_context": {
     "changed_files": [

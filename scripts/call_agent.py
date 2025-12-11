@@ -178,6 +178,18 @@ def call_agent_with_retry(
                             elif isinstance(chunk, str):
                                 preview = chunk[:100].replace("\n", " ")
                                 chunk_info = f"chunk (str): {preview}..."
+                            elif isinstance(chunk, dict):
+                                # Check for state delta or content in dict
+                                if "actions" in chunk or "state_delta" in chunk:
+                                    chunk_info = "chunk with state_delta"
+                                elif "content" in chunk or "text" in chunk:
+                                    chunk_info = "chunk with content"
+                                else:
+                                    chunk_info = (
+                                        f"chunk (dict): {list(chunk.keys())[:3]}"
+                                    )
+                            else:
+                                chunk_info = f"chunk (type: {type(chunk).__name__})"
                             print(
                                 f"  Received {chunk_count[0]} chunks (elapsed: {elapsed:.1f}s) - latest: {chunk_info}"  # noqa: B023
                             )
@@ -232,7 +244,31 @@ def call_agent_with_retry(
 
             # Check if we received any response
             if not response_chunks:
-                raise Exception("No response chunks received from agent")
+                print("\n" + "=" * 80)
+                print("ERROR: No response chunks received from agent stream.")
+                print("=" * 80)
+                print(
+                    "Possible causes:\n"
+                    "1) Agent completed but produced no text output (only state updates)\n"
+                    "2) Agent failed silently without producing output\n"
+                    "3) Streaming API issue or agent deployment problem\n"
+                    "4) Agent instruction may need to explicitly require text output\n"
+                )
+                print(
+                    "Diagnostic steps:\n"
+                    "- Check Agent Engine logs in GCP Console for errors\n"
+                    "- Verify agent is deployed and accessible\n"
+                    "- Check if agent instruction requires text output (not just state updates)\n"
+                    "- Review agent configuration and model availability\n"
+                )
+                print("=" * 80 + "\n")
+                # Raise exception with actionable error message
+                raise Exception(
+                    "No response chunks received from agent after successful stream completion. "
+                    "The agent stream completed normally but produced no chunks. "
+                    "This typically means the agent updated state but didn't produce streamable text output. "
+                    "Check Agent Engine logs and verify the publisher agent instruction requires text output."
+                )
 
             print(
                 f"\nProcessing {len(response_chunks)} chunks to extract final response..."
