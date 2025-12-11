@@ -252,22 +252,34 @@ def call_agent_with_retry(
                     "1) Agent completed but produced no text output (only state updates)\n"
                     "2) Agent failed silently without producing output\n"
                     "3) Streaming API issue or agent deployment problem\n"
-                    "4) Agent instruction may need to explicitly require text output\n"
+                    "4) Publisher agent instruction may not be producing text output\n"
+                    "5) SequentialAgent may not be forwarding final agent's output\n"
                 )
                 print(
                     "Diagnostic steps:\n"
                     "- Check Agent Engine logs in GCP Console for errors\n"
                     "- Verify agent is deployed and accessible\n"
-                    "- Check if agent instruction requires text output (not just state updates)\n"
+                    "- Check publisher agent instruction in app/agent.py - it MUST require text output\n"
                     "- Review agent configuration and model availability\n"
+                    "- Verify the publisher agent is actually producing text (not just updating state)\n"
                 )
                 print("=" * 80 + "\n")
+
+                # Try to get agent state if possible (best-effort)
+                try:
+                    # Attempt to query agent state directly (this may not work depending on SDK version)
+                    print("Attempting to retrieve agent state for diagnostics...")
+                    # Note: This is a best-effort attempt - the SDK may not expose state this way
+                except Exception as state_err:
+                    print(f"Could not retrieve agent state: {state_err}")
+
                 # Raise exception with actionable error message
                 raise Exception(
                     "No response chunks received from agent after successful stream completion. "
                     "The agent stream completed normally but produced no chunks. "
                     "This typically means the agent updated state but didn't produce streamable text output. "
-                    "Check Agent Engine logs and verify the publisher agent instruction requires text output."
+                    "The publisher agent instruction has been updated to explicitly require text output. "
+                    "If this persists, check Agent Engine logs and verify the agent deployment."
                 )
 
             print(

@@ -83,6 +83,8 @@ publisher_agent = create_routed_agent(
     description="Formats the final PR review as a single JSON object containing Markdown summary",
     instruction="""You are the final publisher for an automated GitHub PR code review.
 
+CRITICAL: You MUST output text. Your response will be streamed to a client. If you produce no text output, the system will fail.
+
 Your job: output EXACTLY ONE valid JSON object as plain text (no markdown code fences, no extra commentary).
 
 You MUST read prior results from state:
@@ -117,20 +119,24 @@ Rules:
 - Set `inline_comments` to [] (no inline posting from the publisher).
 - Metrics can be best-effort estimates; if unknown, use zeros except `files_reviewed` which should be len(changed_files) when available.
 
-CRITICAL REQUIREMENT - YOU MUST OUTPUT TEXT:
-Your response MUST contain the JSON object as actual text that will be streamed to the client. This is NOT optional.
-Start your response immediately with the opening brace '{' of the JSON object.
-Do NOT wrap it in markdown code fences (no ```json).
-Do NOT add any explanatory text before or after the JSON.
-The system will automatically save your output to state AND stream it to the client.
-If you produce no text output, the agent will fail with "no response chunks received".
+MANDATORY TEXT OUTPUT REQUIREMENT:
+1. You MUST generate text output. This is not optional.
+2. Start your response IMMEDIATELY with the opening brace '{' of the JSON object.
+3. Do NOT wrap it in markdown code fences (no ```json or ```).
+4. Do NOT add any explanatory text before or after the JSON.
+5. Do NOT delegate to other agents or use tools - just output the JSON directly.
+6. Your response text will be automatically streamed to the client AND saved to state.
+7. If you fail to produce text output, the entire agent system will fail.
 
-Example correct output:
-{"summary": "## Code Review\\n\\nLGTM...", "inline_comments": [], "overall_status": "APPROVED", "metrics": {"files_reviewed": 3, "issues_found": 0, "critical_issues": 0, "warnings": 0, "suggestions": 2, "style_score": 9.5}}
+Example correct output (this is what you MUST produce):
+{"summary": "## Code Review\\n\\nLGTM - no significant issues found.", "inline_comments": [], "overall_status": "APPROVED", "metrics": {"files_reviewed": 3, "issues_found": 0, "critical_issues": 0, "warnings": 0, "suggestions": 2, "style_score": 9.5}}
 
-If model_fallbacks is present in state, append a note to the summary explaining that open source fallback models were used due to Gemini token/quota limits. Format: 'Note: This review used open source fallback models ([list agent names]) due to Gemini token limits. Review quality may be slightly reduced.'""",
-    # Don't use output_key - we need the JSON to be streamed as text, not just saved to state
-    # The stream_extractor will parse the JSON from the streamed text
+If model_fallbacks is present in state, append a note to the summary explaining that open source fallback models were used due to Gemini token/quota limits. Format: 'Note: This review used open source fallback models ([list agent names]) due to Gemini token limits. Review quality may be slightly reduced.'
+
+Remember: Your first character MUST be '{' and your response MUST be valid JSON text.""",
+    # Use output_key to save to state, but the agent MUST still produce text output for streaming
+    # The stream_extractor will parse the JSON from the streamed text, and state provides a fallback
+    output_key="formatted_output",
 )
 
 # Root agent is a short, deterministic chain: orchestrate → publish.
