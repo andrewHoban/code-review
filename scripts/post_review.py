@@ -212,22 +212,114 @@ def main() -> None:
         inline_comments = response.get("inline_comments", [])
         overall_status = response.get("overall_status", "COMMENT")
         metrics = response.get("metrics", {})
+        model_usage = response.get("model_usage", {})
 
-        # Enhance summary with metrics
-        if metrics:
+        # Enhance summary with metrics (only if not already present and metrics exist)
+        if metrics and "**Review Metrics:**" not in summary:
             issues_found = metrics.get("issues_found", 0)
             critical_issues = metrics.get("critical_issues", 0)
             files_reviewed = metrics.get("files_reviewed", 0)
+            style_score = metrics.get("style_score", 0.0)
 
+            # Always add metrics section if metrics dict exists (even if values are 0)
             metrics_text = "\n\n**Review Metrics:**\n"
             metrics_text += f"- Files reviewed: {files_reviewed}\n"
             metrics_text += f"- Total issues: {issues_found}\n"
             metrics_text += f"- Critical issues: {critical_issues}\n"
 
             if "style_score" in metrics:
-                metrics_text += f"- Style score: {metrics['style_score']:.1f}/100\n"
+                metrics_text += f"- Style score: {style_score:.1f}/100\n"
 
             summary = summary + metrics_text
+
+        # Add model information section
+        if model_usage and "**Model Information:**" not in summary:
+            model_text = "\n\n**Model Information:**\n"
+
+            agents_info = model_usage.get("agents", {})
+            fallbacks_used = model_usage.get("fallbacks_used", [])
+            used_fallback = model_usage.get("used_fallback", False)
+
+            if agents_info:
+                # Group agents by model type for clarity
+                primary_agents = []
+                fallback_agents = []
+
+                for agent_name, agent_models in sorted(agents_info.items()):
+                    primary = agent_models.get("primary", "Unknown")
+                    fallback = agent_models.get("fallback", "")
+                    used = agent_models.get("used", primary)
+
+                    if used_fallback and fallback and used == fallback:
+                        fallback_agents.append((agent_name, used, primary))
+                    else:
+                        primary_agents.append((agent_name, used))
+
+                # Show primary model usage first
+                if primary_agents:
+                    for agent_name, model in primary_agents:
+                        model_text += f"- **{agent_name}**: {model}\n"
+
+                # Show fallback usage with warning
+                if fallback_agents:
+                    model_text += "\n"
+                    for agent_name, fallback_model, primary_model in fallback_agents:
+                        model_text += f"- **{agent_name}**: {fallback_model} ⚠️ (fallback from {primary_model})\n"
+
+                # Add summary statistics
+                total_agents = len(agents_info)
+                if used_fallback:
+                    model_text += f"\n📊 **Statistics**: {total_agents} agent(s) used, {len(fallback_agents)} used fallback models\n"
+                    model_text += "⚠️ **Note**: Some agents used fallback models due to token/quota limits. Review quality may be slightly reduced.\n"
+                else:
+                    model_text += f"\n📊 **Statistics**: {total_agents} agent(s) used, all with primary models\n"
+            else:
+                # Fallback: try to get from model_fallbacks if available
+                if fallbacks_used:
+                    model_text += "- Models used:\n"
+                    for fallback_info in fallbacks_used:
+                        model_text += f"  - {fallback_info}\n"
+                    model_text += "\n⚠️ **Note**: Fallback models were used due to token/quota limits.\n"
+                else:
+                    model_text += "- Primary models used (no fallbacks detected)\n"
+
+            summary = summary + model_text
+
+        # Add SWE-bench style performance statistics
+        performance = response.get("performance", {})
+        if performance and "**Performance Statistics:**" not in summary:
+            perf_text = "\n\n**Performance Statistics:**\n"
+
+            duration = performance.get("review_duration_seconds", 0.0)
+            tokens_used = performance.get("tokens_used", 0)
+            input_tokens = performance.get("input_tokens", 0)
+            output_tokens = performance.get("output_tokens", 0)
+            estimated_cost = performance.get("estimated_cost_usd", 0.0)
+            agents_used = performance.get("agents_used", 0)
+            chunks = performance.get("chunks_received", 0)
+
+            if duration > 0:
+                perf_text += f"- **Review duration**: {duration:.1f}s\n"
+            if tokens_used > 0:
+                perf_text += f"- **Tokens used**: {tokens_used:,} ({input_tokens:,} input + {output_tokens:,} output)\n"
+            if estimated_cost > 0:
+                perf_text += f"- **Estimated cost**: ${estimated_cost:.4f} USD\n"
+            if agents_used > 0:
+                perf_text += f"- **Agents involved**: {agents_used}\n"
+            if chunks > 0:
+                perf_text += f"- **Stream chunks**: {chunks:,}\n"
+
+            # Calculate efficiency metrics
+            files_reviewed = metrics.get("files_reviewed", 0) if metrics else 0
+            if duration > 0 and files_reviewed > 0:
+                files_per_second = files_reviewed / duration
+                perf_text += f"- **Throughput**: {files_per_second:.2f} files/second\n"
+
+            if tokens_used > 0 and files_reviewed > 0:
+                tokens_per_file = tokens_used / files_reviewed
+                perf_text += f"- **Efficiency**: {tokens_per_file:.0f} tokens/file\n"
+
+            summary = summary + perf_text
 
         if args.create_review:
             # Create a single review with all comments

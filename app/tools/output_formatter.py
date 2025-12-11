@@ -72,12 +72,33 @@ def format_review_output(
             )
 
         # Get metrics from state or calculate
-        files_reviewed = tool_context.state.get("files_reviewed", len(issues))
-        style_score = (
-            tool_context.state.get("python_style_score", 0)
-            or tool_context.state.get("typescript_style_score", 0)
-            or 0.0
-        )
+        # Calculate files_reviewed: try state first, then count unique files from issues,
+        # then use changed_files from state, finally default to 0
+        if "files_reviewed" in tool_context.state:
+            files_reviewed = tool_context.state["files_reviewed"]
+        else:
+            # Count unique files from issues
+            unique_files = {
+                issue.get("file", "") for issue in issues if issue.get("file")
+            }
+            files_reviewed = len(unique_files)
+            # If no issues, try to get from changed_files in state
+            if files_reviewed == 0:
+                changed_files = tool_context.state.get("changed_files", [])
+                if changed_files:
+                    files_reviewed = len(changed_files)
+
+        # Get style_score: prefer Python, then TypeScript, default to 0.0
+        # Use .get() with None to distinguish between missing key and 0 value
+        python_score = tool_context.state.get("python_style_score")
+        typescript_score = tool_context.state.get("typescript_style_score")
+
+        if python_score is not None:
+            style_score = float(python_score)
+        elif typescript_score is not None:
+            style_score = float(typescript_score)
+        else:
+            style_score = 0.0
 
         metrics = ReviewMetrics(
             files_reviewed=files_reviewed,

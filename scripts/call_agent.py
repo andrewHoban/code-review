@@ -247,6 +247,14 @@ def call_agent_with_retry(
                 f"Debug: Extracted text length={len(combined_text)}, "
                 f"state_delta_keys={list(merged_state.keys())}"
             )
+
+            # Add performance metrics to state
+            merged_state["performance_metrics"] = {
+                "review_duration_seconds": elapsed_total,
+                "chunks_received": chunk_count[0],
+                "payload_size_bytes": payload_size,
+            }
+
             return coerce_review_output(combined_text, merged_state)
 
         except Exception as e:

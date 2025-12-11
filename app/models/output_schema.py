@@ -46,6 +46,25 @@ class ReviewMetrics(BaseModel):
     )
 
 
+class PerformanceMetrics(BaseModel):
+    """SWE-bench style performance metrics for the code review."""
+
+    review_duration_seconds: float = Field(
+        default=0.0, description="Total time taken for review in seconds"
+    )
+    tokens_used: int = Field(
+        default=0, description="Total tokens used (input + output)"
+    )
+    input_tokens: int = Field(default=0, description="Input tokens used")
+    output_tokens: int = Field(default=0, description="Output tokens generated")
+    estimated_cost_usd: float = Field(default=0.0, description="Estimated cost in USD")
+    agents_used: int = Field(default=0, description="Number of agents involved")
+    tool_calls: int = Field(default=0, description="Total tool calls made")
+    chunks_received: int = Field(
+        default=0, description="Number of stream chunks received"
+    )
+
+
 class ModelUsageInfo(BaseModel):
     """Information about which models were used during the review."""
 
@@ -77,4 +96,8 @@ class CodeReviewOutput(BaseModel):
     model_usage: ModelUsageInfo = Field(
         default_factory=lambda: ModelUsageInfo(),
         description="Information about which models were used",
+    )
+    performance: PerformanceMetrics = Field(
+        default_factory=lambda: PerformanceMetrics(),
+        description="SWE-bench style performance metrics",
     )

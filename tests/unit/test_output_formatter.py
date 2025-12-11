@@ -185,3 +185,61 @@ def test_format_review_output_stores_in_state() -> None:
 
     assert "formatted_output" in tool_context.state
     assert tool_context.state["formatted_output"]["overall_status"] == "APPROVED"
+
+
+def test_format_review_output_files_reviewed_from_unique_files() -> None:
+    """Test that files_reviewed is calculated from unique files when not in state."""
+    tool_context = MagicMock()
+    tool_context.state = {}
+
+    summary = "Test"
+    issues = [
+        {"file": "test1.py", "line": 1, "severity": "info", "message": "Issue 1"},
+        {"file": "test1.py", "line": 2, "severity": "info", "message": "Issue 2"},
+        {"file": "test2.py", "line": 1, "severity": "info", "message": "Issue 3"},
+    ]
+
+    result = format_review_output(summary, issues, tool_context)
+
+    assert result["status"] == "success"
+    output = result["output"]
+    # Should count unique files, not total issues
+    assert output["metrics"]["files_reviewed"] == 2
+
+
+def test_format_review_output_files_reviewed_from_changed_files() -> None:
+    """Test that files_reviewed falls back to changed_files when no issues."""
+    tool_context = MagicMock()
+    tool_context.state = {
+        "changed_files": [
+            {"path": "file1.py", "status": "modified"},
+            {"path": "file2.py", "status": "added"},
+            {"path": "file3.ts", "status": "modified"},
+        ]
+    }
+
+    summary = "Test"
+    issues: list[dict[str, Any]] = []
+
+    result = format_review_output(summary, issues, tool_context)
+
+    assert result["status"] == "success"
+    output = result["output"]
+    # Should use changed_files count when no issues
+    assert output["metrics"]["files_reviewed"] == 3
+
+
+def test_format_review_output_style_score_zero_value() -> None:
+    """Test that style_score of 0 is handled correctly (not treated as missing)."""
+    tool_context = MagicMock()
+    tool_context.state = {"python_style_score": 0}
+
+    summary = "Test"
+    issues: list[dict[str, Any]] = []
+
+    result = format_review_output(summary, issues, tool_context)
+
+    assert result["status"] == "success"
+    output = result["output"]
+    # 0 is a valid score, should be used
+    assert output["metrics"]["style_score"] == 0.0
