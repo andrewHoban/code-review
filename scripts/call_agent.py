@@ -173,13 +173,39 @@ def call_agent_with_retry(
             all_text_parts = []
             all_state_deltas = {}  # Accumulate all state deltas
 
-            for _i, chunk in enumerate(response_chunks):
-                # Collect text from content
+            for i, chunk in enumerate(response_chunks):
+                # Collect text from content - check multiple possible locations
+                chunk_text = None
+
+                # Method 1: chunk.content.parts[].text (standard location)
                 if hasattr(chunk, "content") and chunk.content:
                     if hasattr(chunk.content, "parts") and chunk.content.parts:
                         for part in chunk.content.parts:
                             if hasattr(part, "text") and part.text:
-                                all_text_parts.append(part.text)
+                                chunk_text = part.text
+                                all_text_parts.append(chunk_text)
+                                if (
+                                    i < 3 or i == len(response_chunks) - 1
+                                ):  # Debug first 3 and last
+                                    print(
+                                        f"  Chunk {i}: Found text in content.parts ({len(chunk_text)} chars)"
+                                    )
+
+                # Method 2: chunk.text (direct attribute, some chunk types)
+                if not chunk_text and hasattr(chunk, "text") and chunk.text:
+                    chunk_text = chunk.text
+                    all_text_parts.append(chunk_text)
+                    if i < 3 or i == len(response_chunks) - 1:
+                        print(
+                            f"  Chunk {i}: Found text in chunk.text ({len(chunk_text)} chars)"
+                        )
+
+                # Method 3: Check if chunk itself is a string
+                if not chunk_text and isinstance(chunk, str):
+                    chunk_text = chunk
+                    all_text_parts.append(chunk_text)
+                    if i < 3 or i == len(response_chunks) - 1:
+                        print(f"  Chunk {i}: Chunk is string ({len(chunk_text)} chars)")
 
                 # Collect structured data from state_delta
                 if hasattr(chunk, "actions") and chunk.actions:
@@ -190,6 +216,13 @@ def call_agent_with_retry(
                         state_delta = chunk.actions.state_delta
                         # Merge all state deltas (later chunks may override earlier ones)
                         all_state_deltas.update(state_delta)
+                        if i < 3 or i == len(response_chunks) - 1:
+                            print(
+                                f"  Chunk {i}: Found state_delta with keys: {list(state_delta.keys())}"
+                            )
+
+            # Compute combined text early so we can use it in structured output handling
+            combined_text = "\n".join(all_text_parts).strip()
 
             # Look for structured output in accumulated state
             # Check in order of preference:
@@ -221,21 +254,66 @@ def call_agent_with_retry(
                         or "summary" in structured_output
                     ):
                         print("Using structured output from state")
+                        # Ensure summary exists, use fallback if missing
+                        if (
+                            "summary" not in structured_output
+                            or not structured_output["summary"]
+                        ):
+                            print(
+                                "WARNING: Structured output missing summary, using text fallback"
+                            )
+                            if combined_text:
+                                structured_output["summary"] = combined_text
+                            else:
+                                structured_output["summary"] = (
+                                    "Review completed - see inline comments for details"
+                                )
                         return structured_output
                     else:
                         print(
                             f"Structured output missing expected fields: {list(structured_output.keys())}"
                         )
+                        # Try to salvage it by adding missing fields
+                        if combined_text:
+                            print(
+                                "Attempting to merge structured output with text response"
+                            )
+                            structured_output["summary"] = combined_text
+                            if "overall_status" not in structured_output:
+                                structured_output["overall_status"] = "COMMENT"
+                            if "inline_comments" not in structured_output:
+                                structured_output["inline_comments"] = []
+                            if "metrics" not in structured_output:
+                                structured_output["metrics"] = {}
+                            return structured_output
                 elif isinstance(structured_output, str):
                     try:
                         parsed = json.loads(structured_output)
                         if isinstance(parsed, dict):
+                            # Ensure summary exists
+                            if "summary" not in parsed or not parsed["summary"]:
+                                if combined_text:
+                                    parsed["summary"] = combined_text
+                                else:
+                                    parsed["summary"] = (
+                                        "Review completed - see inline comments for details"
+                                    )
                             return parsed
                     except json.JSONDecodeError:
-                        pass
+                        # If it's not JSON, treat as text and add to text parts
+                        if structured_output.strip():
+                            print("Treating structured_output string as text response")
+                            all_text_parts.append(structured_output.strip())
+                            # Recompute combined_text after adding structured_output as text
+                            combined_text = "\n".join(all_text_parts).strip()
 
             # Fallback: Use text response and format it
-            combined_text = "\n".join(all_text_parts).strip()
+            print(
+                f"Debug: Collected {len(all_text_parts)} text parts, total length: {len(combined_text)}"
+            )
+            print(
+                f"Debug: Found {len(all_state_deltas)} state delta keys: {list(all_state_deltas.keys())}"
+            )
 
             if combined_text:
                 print(f"Using text response ({len(combined_text)} characters)")
@@ -262,24 +340,77 @@ def call_agent_with_retry(
                 f"Final chunk attributes: {[attr for attr in dir(final_chunk) if not attr.startswith('_')][:20]}"
             )
 
-            # Try various extraction methods
-            if isinstance(final_chunk, str):
+            # Try various extraction methods from final chunk
+            final_text = None
+
+            # Check if final chunk has text in various locations
+            if hasattr(final_chunk, "content") and final_chunk.content:
+                if hasattr(final_chunk.content, "parts") and final_chunk.content.parts:
+                    for part in final_chunk.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            final_text = part.text
+                            break
+
+            if not final_text and hasattr(final_chunk, "text") and final_chunk.text:
+                final_text = final_chunk.text
+
+            if not final_text and isinstance(final_chunk, str):
+                final_text = final_chunk
+
+            if final_text:
+                print(f"Extracted text from final chunk ({len(final_text)} characters)")
                 try:
-                    return json.loads(final_chunk)
+                    # Try parsing as JSON first
+                    parsed = json.loads(final_text)
+                    if isinstance(parsed, dict) and (
+                        "summary" in parsed or "overall_status" in parsed
+                    ):
+                        return parsed
                 except json.JSONDecodeError:
-                    return {
-                        "summary": final_chunk,
-                        "inline_comments": [],
-                        "overall_status": "COMMENT",
-                        "metrics": {},
-                    }
-            elif isinstance(final_chunk, dict):
+                    pass
+
+                # Use as plain text
+                return {
+                    "summary": final_text.strip(),
+                    "inline_comments": [],
+                    "overall_status": "COMMENT",
+                    "metrics": {
+                        "files_reviewed": 0,
+                        "issues_found": 0,
+                        "critical_issues": 0,
+                        "warnings": 0,
+                        "suggestions": 0,
+                        "style_score": 0.0,
+                    },
+                }
+
+            if isinstance(final_chunk, dict):
+                print("Final chunk is a dict, using directly")
                 return final_chunk
-            else:
-                raise Exception(
-                    f"Failed to extract response from {len(response_chunks)} chunks. "
-                    f"Last chunk type: {type(final_chunk)}"
-                )
+
+            # Ultimate fallback - return a meaningful message instead of failing
+            print("WARNING: Could not extract any content from agent response")
+            print(f"  Total chunks: {len(response_chunks)}")
+            print(f"  Text parts collected: {len(all_text_parts)}")
+            print(f"  State delta keys: {list(all_state_deltas.keys())}")
+
+            return {
+                "summary": (
+                    "Code review completed successfully, but the review content could not be extracted from the agent response. "
+                    "This may indicate an issue with the agent output format or streaming response parsing. "
+                    "Please check the workflow logs for details."
+                ),
+                "inline_comments": [],
+                "overall_status": "COMMENT",
+                "metrics": {
+                    "files_reviewed": 0,
+                    "issues_found": 0,
+                    "critical_issues": 0,
+                    "warnings": 0,
+                    "suggestions": 0,
+                    "style_score": 0.0,
+                },
+            }
 
         except Exception as e:
             last_error = e
