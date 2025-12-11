@@ -71,8 +71,10 @@ def test_agent_feedback_missing_fields(agent_app: AgentEngineApp) -> None:
 
 def test_agent_app_has_root_agent(agent_app: AgentEngineApp) -> None:
     """Test that AgentEngineApp has a root agent configured."""
-    assert agent_app.root_agent is not None
-    assert agent_app.root_agent.name is not None
+    # AgentEngineApp stores the app in _tmpl_attrs
+    assert agent_app._tmpl_attrs.get("app") is not None
+    assert agent_app._tmpl_attrs.get("app").root_agent is not None
+    assert agent_app._tmpl_attrs.get("app").root_agent.name is not None
 
 
 @pytest.mark.asyncio
