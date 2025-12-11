@@ -48,6 +48,12 @@ def get_related_file(file_path: str, tool_context: ToolContext) -> dict[str, Any
     try:
         related_files = tool_context.state.get(RepoContextStateKeys.RELATED_FILES, [])
 
+        # Validate that related_files is a list
+        if not isinstance(related_files, list):
+            raise TypeError(
+                f"Expected list for related_files, got {type(related_files).__name__}"
+            )
+
         # Search for exact match
         for file in related_files:
             if isinstance(file, dict) and file.get("path") == file_path:
