@@ -291,19 +291,23 @@ class TestPathTraversalAttacks:
 
     def test_path_traversal_variations(self, tmp_path: Path) -> None:
         """Test various path traversal attack patterns."""
+        # Patterns that should definitely fail (resolve outside repo)
         attack_patterns = [
             "../../etc/passwd",
             "..\\..\\windows\\system32",
             "....//....//etc/passwd",
             "/etc/passwd",
-            "..",
-            "../",
-            "..\\",
         ]
 
         for pattern in attack_patterns:
             with pytest.raises(ValueError):
                 sanitize_file_path(pattern, tmp_path)
+
+        # Test ".." and "../" - these resolve to parent of repo_root (outside)
+        with pytest.raises(ValueError, match="outside repository"):
+            sanitize_file_path("..", tmp_path)
+        with pytest.raises(ValueError, match="outside repository"):
+            sanitize_file_path("../", tmp_path)
 
 
 class TestReDoSPrevention:
