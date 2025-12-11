@@ -42,6 +42,24 @@ https://console.cloud.google.com/vertex-ai/agents/locations/europe-west1/agent-e
 
 ### Using the Agent Engine API
 
+**For querying the deployed agent:**
+
+```python
+import vertexai
+from vertexai import agent_engines
+
+vertexai.init(
+    project="bpc-askgreg-nonprod",
+    location="europe-west1"
+)
+
+agent_engine = agent_engines.get(
+    resource_name='projects/442593217095/locations/europe-west1/reasoningEngines/3659508948773371904'
+)
+```
+
+**For management operations (create/update/delete):**
+
 ```python
 import vertexai
 
@@ -50,9 +68,9 @@ client = vertexai.Client(
     location="europe-west1"
 )
 
-agent_engine = client.agent_engines.get(
-    name='projects/442593217095/locations/europe-west1/reasoningEngines/3659508948773371904'
-)
+# Use client for deployment operations only
+# agent = client.agent_engines.create(config=...)
+# agent = client.agent_engines.update(name=..., config=...)
 ```
 
 ## Testing the Deployed Agent
@@ -66,14 +84,15 @@ Create a test script to call the agent:
 ```python
 import json
 import vertexai
+from vertexai import agent_engines
 
-client = vertexai.Client(
+vertexai.init(
     project="bpc-askgreg-nonprod",
     location="europe-west1"
 )
 
-agent_engine = client.agent_engines.get(
-    name='projects/442593217095/locations/europe-west1/reasoningEngines/3659508948773371904'
+agent_engine = agent_engines.get(
+    resource_name='projects/442593217095/locations/europe-west1/reasoningEngines/3659508948773371904'
 )
 
 # Load test payload

@@ -79,19 +79,21 @@ response = agent.query(input=json.dumps(payload))
 
 ### Correct API Usage Pattern
 
+**IMPORTANT:** There are TWO different APIs in the Vertex AI SDK:
+
+1. **Direct module approach (CORRECT for querying):**
+
 ```python
 import json
 import vertexai
+from vertexai import agent_engines
 
-# Initialize client
-client = vertexai.Client(
-    project="YOUR_PROJECT_ID",
-    location="YOUR_LOCATION"
-)
+# Initialize vertexai
+vertexai.init(project="YOUR_PROJECT_ID", location="YOUR_LOCATION")
 
 # Get deployed agent
-agent = client.agent_engines.get(
-    name="projects/PROJECT_ID/locations/LOCATION/reasoningEngines/RESOURCE_ID"
+agent = agent_engines.get(
+    resource_name="projects/PROJECT_ID/locations/LOCATION/reasoningEngines/RESOURCE_ID"
 )
 
 # Query the agent
@@ -106,24 +108,53 @@ else:
     result = json.loads(str(response))
 ```
 
+2. **Client-based approach (for management operations only):**
+
+```python
+import vertexai
+
+# This approach is for create/update/delete/list operations
+client = vertexai.Client(project="PROJECT_ID", location="LOCATION")
+
+# Get agent metadata (returns different object without query method)
+agent_metadata = client.agent_engines.get(name="RESOURCE_NAME")
+
+# DON'T USE client.agent_engines.get() for querying!
+# The returned object doesn't have a query() method
+```
+
 ## API Confusion Sources
 
-The confusion arose from multiple API patterns in documentation:
+The confusion arose from multiple API patterns in documentation and SDK design:
 
 1. **Old API (vertexai.preview.reasoning_engines):**
    - Used for custom reasoning engines
    - Has different calling patterns
    - Still in preview
 
-2. **New API (vertexai.Client().agent_engines):**
-   - Current recommended approach
-   - Client-based design (v1.112.0+)
-   - Used for ADK agents deployed to Agent Engine
+2. **Direct module API (agent_engines.get + query):**
+   - Use `vertexai.init()` + `agent_engines.get(resource_name=)`
+   - Returns AgentEngine object WITH query() method
+   - **CORRECT for querying deployed agents**
 
-3. **Mixed Documentation:**
+3. **Client-based API (vertexai.Client().agent_engines):**
+   - Use `vertexai.Client()` + `client.agent_engines.get(name=)`
+   - Returns different object WITHOUT query() method
+   - **ONLY for management operations (create/update/delete/list)**
+   - Introduced in v1.112.0 for deployment management
+
+4. **Mixed Documentation:**
    - Some documentation shows `agent_engines` module directly
    - Some shows it through `vertexai.Client()`
+   - Not clear which approach returns queryable objects
    - Parameter names vary in examples (`message` vs `input`, `user_id` placement)
+
+### The Key Discovery
+
+**The object returned by `client.agent_engines.get()` is NOT the same as the object returned by `agent_engines.get()`:**
+
+- `client.agent_engines.get()` → Returns agent metadata (no query method)
+- `agent_engines.get()` → Returns AgentEngine instance (with query method)
 
 ## Files Fixed
 
