@@ -48,12 +48,9 @@ def call_agent_with_retry(
             # Get the deployed agent
             agent = agent_engines.get(resource_name=resource_name)
 
-            # Create a session for the query
-            user_id = f"pr-review-{payload.get('pr_metadata', {}).get('pr_number', 'unknown')}"
-            session = agent.create_session(user_id=user_id)
-
             # Query the agent with the payload as input
-            response = session.query(input=json.dumps(payload))
+            user_id = f"pr-review-{payload.get('pr_metadata', {}).get('pr_number', 'unknown')}"
+            response = agent.query(message=json.dumps(payload), user_id=user_id)
 
             # Parse response - the response format may vary
             # Try to extract text from the response
