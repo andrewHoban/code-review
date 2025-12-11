@@ -1,0 +1,56 @@
+{
+  "pr_metadata": {
+    "pr_number": 42,
+    "repository": "example/repo",
+    "title": "Add user authentication",
+    "description": "Implements basic user authentication with login/logout",
+    "author": "developer",
+    "base_branch": "main",
+    "head_branch": "feature/auth",
+    "base_sha": "abc123",
+    "head_sha": "def456"
+  },
+  "review_context": {
+    "changed_files": [
+      {
+        "path": "src/auth.py",
+        "language": "python",
+        "status": "added",
+        "additions": 50,
+        "deletions": 0,
+        "diff": "@@ -0,0 +1,50 @@\n+def authenticate(username, password):\n+    \"\"\"Authenticate a user.\"\"\"\n+    user = get_user(username)\n+    if user and user.check_password(password):\n+        return user\n+    return None",
+        "full_content": "def authenticate(username, password):\n    \"\"\"Authenticate a user.\"\"\"\n    user = get_user(username)\n    if user and user.check_password(password):\n        return user\n    return None\n\ndef get_user(username):\n    \"\"\"Get user by username.\"\"\"\n    # Implementation here\n    pass\n",
+        "lines_changed": [1, 2, 3, 4, 5, 6]
+      }
+    ],
+    "related_files": [
+      {
+        "path": "src/models.py",
+        "content": "class User:\n    def __init__(self, username, password_hash):\n        self.username = username\n        self.password_hash = password_hash\n    \n    def check_password(self, password):\n        return hash(password) == self.password_hash\n",
+        "relationship": "imported by src/auth.py",
+        "language": "python"
+      }
+    ],
+    "test_files": [
+      {
+        "path": "tests/test_auth.py",
+        "content": "import pytest\nfrom src.auth import authenticate\n\ndef test_authenticate_success():\n    assert authenticate('user', 'pass') is not None\n",
+        "tests_for": "src/auth.py",
+        "language": "python"
+      }
+    ],
+    "dependency_map": {
+      "src/auth.py": {
+        "imports": ["src/models.py"],
+        "imported_by": []
+      }
+    },
+    "repository_info": {
+      "name": "repo",
+      "primary_language": "python",
+      "languages_used": ["python"],
+      "total_files": 25,
+      "has_tests": true
+    }
+  }
+}

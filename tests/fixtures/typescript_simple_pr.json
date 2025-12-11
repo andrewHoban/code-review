@@ -1,0 +1,56 @@
+{
+  "pr_metadata": {
+    "pr_number": 43,
+    "repository": "example/repo",
+    "title": "Add user authentication",
+    "description": "Implements basic user authentication with login/logout",
+    "author": "developer",
+    "base_branch": "main",
+    "head_branch": "feature/auth",
+    "base_sha": "abc123",
+    "head_sha": "def456"
+  },
+  "review_context": {
+    "changed_files": [
+      {
+        "path": "src/auth.ts",
+        "language": "typescript",
+        "status": "added",
+        "additions": 50,
+        "deletions": 0,
+        "diff": "@@ -0,0 +1,50 @@\n+export async function authenticate(username: string, password: string): Promise<User | null> {\n+  const user = await getUser(username);\n+  if (user && await user.checkPassword(password)) {\n+    return user;\n+  }\n+  return null;\n+}",
+        "full_content": "export async function authenticate(username: string, password: string): Promise<User | null> {\n  const user = await getUser(username);\n  if (user && await user.checkPassword(password)) {\n    return user;\n  }\n  return null;\n}\n\nexport async function getUser(username: string): Promise<User | null> {\n  // Implementation here\n  return null;\n}\n",
+        "lines_changed": [1, 2, 3, 4, 5, 6]
+      }
+    ],
+    "related_files": [
+      {
+        "path": "src/models.ts",
+        "content": "export interface User {\n  username: string;\n  passwordHash: string;\n  checkPassword(password: string): Promise<boolean>;\n}\n",
+        "relationship": "imported by src/auth.ts",
+        "language": "typescript"
+      }
+    ],
+    "test_files": [
+      {
+        "path": "tests/auth.test.ts",
+        "content": "import { authenticate } from '../src/auth';\n\ndescribe('authenticate', () => {\n  it('should authenticate valid user', async () => {\n    const user = await authenticate('user', 'pass');\n    expect(user).not.toBeNull();\n  });\n});\n",
+        "tests_for": "src/auth.ts",
+        "language": "typescript"
+      }
+    ],
+    "dependency_map": {
+      "src/auth.ts": {
+        "imports": ["src/models.ts"],
+        "imported_by": []
+      }
+    },
+    "repository_info": {
+      "name": "repo",
+      "primary_language": "typescript",
+      "languages_used": ["typescript"],
+      "total_files": 30,
+      "has_tests": true
+    }
+  }
+}
