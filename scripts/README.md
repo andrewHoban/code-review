@@ -24,15 +24,17 @@ python scripts/extract_review_context.py \
 - Fetches PR metadata from GitHub API
 - Gets changed files using `git diff`
 - Extracts file contents and diffs
-- Finds related files (imports, dependencies)
+- Finds related files (forward dependencies - files imported by changed files)
+- Finds reverse dependencies (files that import changed files)
 - Finds test files
-- Builds dependency maps
+- Builds dependency maps with both forward and reverse dependencies
 - Generates JSON payload matching agent input schema
 
 **Limitations:**
 - Only processes Python and TypeScript files
 - Skips files larger than 100KB
-- Limits related files to 5 per changed file
+- Limits forward dependencies (imported files) to 5 per changed file
+- Limits reverse dependencies (importing files) to 10 per changed file (configurable via `MAX_REVERSE_DEPENDENCIES` env var)
 - Limits test files to 3 per changed file
 
 ### `call_agent.py`

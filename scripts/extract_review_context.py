@@ -241,6 +241,209 @@ def find_related_files(
     return related
 
 
+def find_reverse_dependencies(
+    repo: Repo,
+    changed_files: list[str],
+    head_sha: str | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, list[str]]:
+    """Find files that import changed files (reverse dependencies) with security validation."""
+    if repo_root is None:
+        repo_root = Path(repo.working_dir)
+
+    reverse_deps = {}
+
+    # Build a set of changed file paths for quick lookup
+    changed_files_set = set(changed_files)
+
+    # Get all Python and TypeScript files in the repository
+    all_code_files = []
+    for item in repo.head.commit.tree.traverse():
+        if item.type == "blob":
+            file_path = item.path
+            lang = detect_language(file_path)
+            if lang in ["python", "typescript", "javascript"]:
+                # Skip test files (already handled separately)
+                if not is_test_file(file_path, lang):
+                    # Skip changed files themselves
+                    if file_path not in changed_files_set:
+                        all_code_files.append((file_path, lang))
+
+    # For each changed file, find files that import it
+    for changed_file in changed_files:
+        language = detect_language(changed_file)
+        if not language or language not in ["python", "typescript"]:
+            continue
+
+        try:
+            # Validate changed file path
+            if repo_root:
+                sanitize_file_path(changed_file, repo_root)
+
+            # Extract module identifiers for matching
+            changed_path_obj = Path(changed_file)
+            changed_dir = changed_path_obj.parent
+            changed_stem = changed_path_obj.stem
+            changed_name = changed_path_obj.name
+
+            # For Python: generate possible import patterns
+            # e.g., src/auth.py -> src.auth, auth, .auth, ..auth (relative)
+            python_patterns = []
+            if language == "python":
+                # Absolute import: src/auth.py -> src.auth
+                module_parts = changed_file.replace("/", ".").replace("\\", ".")
+                if module_parts.endswith(".py"):
+                    module_parts = module_parts[:-3]
+                if module_parts.endswith(".pyi"):
+                    module_parts = module_parts[:-4]
+                python_patterns.append(module_parts)
+
+                # Just the module name: auth
+                python_patterns.append(changed_stem)
+
+                # Package __init__ case: src/auth/__init__.py -> src.auth
+                if changed_name == "__init__.py":
+                    parent_module = (
+                        str(changed_dir).replace("/", ".").replace("\\", ".")
+                    )
+                    python_patterns.append(parent_module)
+
+            # For TypeScript: generate relative import patterns
+            # e.g., src/auth.ts -> ./auth, ../auth, etc.
+            typescript_patterns = []
+            if language in ["typescript", "javascript"]:
+                # Relative patterns: ./auth, ../auth, ../../auth
+                typescript_patterns.append(f"./{changed_stem}")
+                typescript_patterns.append(f"../{changed_stem}")
+                typescript_patterns.append(f"../../{changed_stem}")
+                # Also check without extension
+                typescript_patterns.append(
+                    f"./{changed_stem.replace('.ts', '').replace('.tsx', '')}"
+                )
+
+            importers: list[str] = []
+
+            # Scan all code files for imports matching our patterns
+            for candidate_path, candidate_lang in all_code_files:
+                if len(importers) >= MAX_REVERSE_DEPENDENCIES:
+                    break
+
+                # Skip if already found
+                if candidate_path in importers:
+                    continue
+
+                try:
+                    # Validate candidate path
+                    if repo_root:
+                        sanitize_file_path(candidate_path, repo_root)
+
+                    content = get_file_content(
+                        repo, candidate_path, head_sha, repo_root
+                    )
+                    if not content:
+                        continue
+
+                    # Check Python imports
+                    if candidate_lang == "python" and language == "python":
+                        # Check absolute imports first
+                        for pattern in python_patterns:
+                            # Match: from pattern import, import pattern
+                            import_regex = re.compile(
+                                rf"(?:from\s+{re.escape(pattern)}\s+import|import\s+{re.escape(pattern)}\b)",
+                                re.IGNORECASE,
+                            )
+                            if import_regex.search(content):
+                                importers.append(candidate_path)
+                                break
+
+                        # Check relative imports: from .auth import, from ..auth import
+                        if candidate_path not in importers:
+                            relative_regex = re.compile(
+                                rf"from\s+\.+{re.escape(changed_stem)}\s+import",
+                                re.IGNORECASE,
+                            )
+                            if relative_regex.search(content):
+                                # Verify the relative path could resolve correctly
+                                try:
+                                    candidate_dir = Path(candidate_path).parent
+                                    changed_dir = Path(changed_file).parent
+                                    # Check if they're in the same package structure
+                                    # This is a heuristic - relative imports work within packages
+                                    if str(changed_dir).startswith(
+                                        str(candidate_dir)
+                                    ) or str(candidate_dir).startswith(
+                                        str(changed_dir)
+                                    ):
+                                        importers.append(candidate_path)
+                                except (ValueError, AttributeError):
+                                    pass
+
+                    # Check TypeScript/JavaScript imports
+                    elif candidate_lang in [
+                        "typescript",
+                        "javascript",
+                    ] and language in ["typescript", "javascript"]:
+                        # Calculate the actual relative path from candidate to changed file
+                        try:
+                            candidate_abs = (repo_root / candidate_path).resolve()
+                            changed_abs = (repo_root / changed_file).resolve()
+
+                            # Calculate relative path (e.g., ../auth or ./auth)
+                            try:
+                                calculated_rel = changed_abs.relative_to(
+                                    candidate_abs.parent
+                                )
+                                rel_str = str(calculated_rel).replace("\\", "/")
+                                # Remove extension for matching
+                                rel_str_no_ext = (
+                                    rel_str.rsplit(".", 1)[0]
+                                    if "." in rel_str
+                                    else rel_str
+                                )
+
+                                # Check if any import statement matches this relative path
+                                # Match patterns like: import ... from './auth', import ... from '../auth'
+                                # Also match without extension: './auth' matches './auth.ts'
+                                import_patterns = [
+                                    rf"import\s+.*from\s+['\"]{re.escape(rel_str)}['\"]",
+                                    rf"import\s+.*from\s+['\"]{re.escape(rel_str_no_ext)}['\"]",
+                                    rf"import\s+.*from\s+['\"]{re.escape(rel_str)}/['\"]",  # Directory import
+                                    rf"import\s+.*from\s+['\"]{re.escape(rel_str_no_ext)}/['\"]",
+                                ]
+
+                                for pattern in import_patterns:
+                                    if re.search(pattern, content, re.IGNORECASE):
+                                        importers.append(candidate_path)
+                                        break
+                            except ValueError:
+                                # Files not in same directory tree, try pattern matching
+                                # Check if any import contains the changed file's stem
+                                stem_pattern = rf"import\s+.*from\s+['\"][^'\"]*{re.escape(changed_stem)}['\"]"
+                                if re.search(stem_pattern, content, re.IGNORECASE):
+                                    importers.append(candidate_path)
+                        except (ValueError, OSError):
+                            # Fallback: simple pattern matching on file stem
+                            stem_pattern = rf"import\s+.*from\s+['\"][^'\"]*{re.escape(changed_stem)}['\"]"
+                            if re.search(stem_pattern, content, re.IGNORECASE):
+                                importers.append(candidate_path)
+
+                except (ValueError, OSError):
+                    # Skip invalid paths or files we can't read
+                    continue
+                except Exception:
+                    continue
+
+            reverse_deps[changed_file] = importers[:MAX_REVERSE_DEPENDENCIES]
+
+        except (ValueError, OSError) as e:
+            print(f"Warning: Error processing reverse deps for {changed_file}: {e}")
+            reverse_deps[changed_file] = []
+        except Exception:
+            reverse_deps[changed_file] = []
+
+    return reverse_deps
+
+
 def find_test_files(
     repo: Repo, changed_files: list[str], head_sha: str | None = None
 ) -> dict[str, list[str]]:
@@ -483,12 +686,20 @@ def extract_review_context(
     # This reduces initial payload by 10-15% for typical PRs
     changed_paths_list = [f.path for f in processed_files]
     related_map = find_related_files(repo, changed_paths_list, head_sha, repo_root)
+    reverse_deps_map = find_reverse_dependencies(
+        repo, changed_paths_list, head_sha, repo_root
+    )
     related_files_list = []
 
-    # Store related file paths with metadata (but not content)
+    # Track files we've already added to avoid duplicates
+    added_files = set()
+
+    # Store forward dependencies (files imported by changed files)
     # Agents can use get_related_file_tool to load content on-demand
     for file_path, related_paths in related_map.items():
         for related_path in related_paths[:5]:  # Limit to 5 per changed file
+            if related_path in added_files:
+                continue
             try:
                 sanitize_file_path(related_path, repo_root)
                 lang = detect_language(related_path)
@@ -502,8 +713,32 @@ def extract_review_context(
                         language=lang or "unknown",
                     )
                 )
+                added_files.add(related_path)
             except (ValueError, OSError) as e:
                 print(f"Warning: Skipping related file {related_path}: {e}")
+                continue
+            except Exception:
+                pass
+
+    # Store reverse dependencies (files that import changed files)
+    for file_path, reverse_paths in reverse_deps_map.items():
+        for reverse_path in reverse_paths:
+            if reverse_path in added_files:
+                continue
+            try:
+                sanitize_file_path(reverse_path, repo_root)
+                lang = detect_language(reverse_path)
+                related_files_list.append(
+                    RelatedFile(
+                        path=reverse_path,
+                        content="",  # Empty - loaded on-demand via tool
+                        relationship=f"imports {file_path}",
+                        language=lang or "unknown",
+                    )
+                )
+                added_files.add(reverse_path)
+            except (ValueError, OSError) as e:
+                print(f"Warning: Skipping reverse dependency {reverse_path}: {e}")
                 continue
             except Exception:
                 pass
@@ -537,7 +772,9 @@ def extract_review_context(
     for file_path, related_paths in related_map.items():
         dependency_map[file_path] = FileDependencies(
             imports=related_paths[:10],  # Limit imports
-            imported_by=[],  # Would need reverse lookup
+            imported_by=reverse_deps_map.get(file_path, [])[
+                :MAX_REVERSE_DEPENDENCIES
+            ],  # Reverse dependencies
         )
 
     # Get repository info
