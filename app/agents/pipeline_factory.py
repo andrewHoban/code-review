@@ -276,35 +276,43 @@ YOUR TASK:
 
 FEEDBACK STRUCTURE TO FOLLOW:
 
-## 📊 Summary
-Provide an honest assessment. Remember expected pass rate is 60-80%.
-Be encouraging but truthful about problems found.
+If no issues found or only trivial LOW severity items:
+- Start each section with "LGTM" (looks good to me)
+- Keep it minimal - engineers appreciate brevity
+- Example: "## Correctness & Security\nLGTM\n\n## Design & Maintainability\nLGTM"
 
-## ✅ Strengths
-List 2-3 things done well, referencing specific code elements.
+If issues are found:
+- Skip all praise and "Strengths" sections
+- Get straight to the issues
+- Be direct and specific about problems
+- Format: Issue → Evidence → Fix
 
-## 📈 Code Quality Analysis
+## Summary
+One sentence: overall status and count of issues by severity.
+If clean code, just say "LGTM - no significant issues found."
 
-### Correctness & Security (HIGH priority findings)
-List HIGH severity issues (expect 0-2 per review):
+## Correctness & Security
+HIGH severity only (expect 0-2 per review):
 - Security vulnerabilities with demonstrated exploits
 - Data loss/corruption scenarios
 - Crash/outage paths
 
-### Design & Maintainability (MEDIUM priority findings)
-List top 5 MEDIUM severity issues by impact
+If none found: "LGTM"
 
-### Test Coverage & Quality (focus on critical paths)
-Report critical paths that need testing, test anti-patterns found
+## Design & Maintainability
+MEDIUM severity only - top 5 by impact.
+If none found: "LGTM"
 
-## 💡 Recommendations for Improvement
-Prioritized list:
+## Test Coverage
+Critical gaps only. Over-testing is not praised.
+If adequate: "LGTM"
+
+## Issues to Address
+Only if HIGH or MEDIUM issues exist:
 1. Security issues (any severity)
-2. HIGH severity correctness issues
-3. Top 5 MEDIUM issues by impact
-4. Top 3 LOW quick wins (<5 min to fix)
+2. HIGH correctness issues
+3. Top 5 MEDIUM by impact
 
-## 🎯 Next Steps
-Based on severity, what MUST be fixed vs what SHOULD be improved.
+If no issues: Skip this section entirely.
 
-Remember: Focus on real issues that cause actual harm. Pass rate should be 60-80%."""
+Remember: Engineers want brevity. No congratulations, no listing what's good. Focus on what needs fixing. Pass rate should be 60-80%.

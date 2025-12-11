@@ -89,11 +89,14 @@ TOOL USAGE:
 - The tool will automatically store results in state for pipelines to access
 
 OUTPUT:
-Provide a comprehensive review that includes:
-- Summary of all findings from all pipelines
-- Combined inline comments from all pipelines
+Combine results from all pipelines. Be concise:
+- If no issues: Use "LGTM" for each section
+- If issues exist: Focus only on what needs fixing
+- Skip praise, strengths, and congratulations
 - Overall status (APPROVED/NEEDS_CHANGES/COMMENT)
-- Metrics aggregated across all languages""",
+- Metrics aggregated across all languages
+
+Engineers value brevity. Don't waste their time with positivity.""",
     tools=[detect_languages_tool, get_related_file_tool, search_imports_tool],
     sub_agents=[python_review_pipeline, typescript_review_pipeline],
     output_key="code_review_output",
