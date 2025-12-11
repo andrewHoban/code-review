@@ -164,93 +164,76 @@ The agent returns a JSON object with this structure:
 
 ## GitHub Actions Integration
 
-### Example Workflow
+### Automated PR Reviews
+
+The repository includes a ready-to-use GitHub Actions workflow that automatically reviews PRs.
+
+**Workflow:** `.github/workflows/pr-review.yml`
+
+This workflow:
+- Triggers on PR events (opened, synchronize, reopened)
+- Extracts review context from changed files
+- Calls the deployed agent via Agent Engine API
+- Posts review comments and summary on the PR
+
+**Prerequisites:**
+- GitHub Secrets configured:
+  - `GCP_PROJECT_ID`: Your GCP project ID
+  - `GCP_PROJECT_NUMBER`: Your GCP project number
+  - `GCP_REGION`: GCP region (e.g., `europe-west1`)
+- Workload Identity Federation configured for GCP authentication
+
+**How it works:**
+1. When a PR is opened or updated, the workflow runs
+2. `extract_review_context.py` builds the agent input payload from PR data
+3. `call_agent.py` invokes the deployed Agent Engine
+4. `post_review.py` posts the agent's feedback as PR comments
+
+### Using in Other Repositories
+
+To use the code review agent in other repositories, use the reusable workflow:
 
 ```yaml
 name: Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 jobs:
   review:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout PR code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Extract review context
-        id: extract-context
-        run: |
-          python scripts/extract_review_context.py \
-            --pr-number=${{ github.event.pull_request.number }} \
-            --repo=${{ github.repository }} \
-            --base-sha=${{ github.event.pull_request.base.sha }} \
-            --head-sha=${{ github.event.pull_request.head.sha }} \
-            --output=review_payload.json
-
-      - name: Call code review agent
-        id: review
-        run: |
-          # Authenticate with Google Cloud
-          gcloud auth application-default login --quiet
-          
-          # Call agent via Agent Engine API
-          python scripts/call_agent.py \
-            --payload=review_payload.json \
-            --output=review_response.json
-
-      - name: Post review comments
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const response = require('./review_response.json');
-            
-            // Post summary comment
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: response.summary
-            });
-            
-            // Post inline comments
-            for (const comment of response.inline_comments) {
-              github.rest.pulls.createReviewComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number,
-                body: comment.body,
-                path: comment.path,
-                line: comment.line,
-                side: comment.side
-              });
-            }
+    uses: owner/code-review/.github/workflows/pr-review-reusable.yml@main
+    with:
+      project_id: "your-gcp-project-id"
+      location: "europe-west1"
+      agent_engine_id: "3659508948773371904"
+    secrets:
+      GCP_PROJECT_NUMBER: ${{ secrets.GCP_PROJECT_NUMBER }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Context Extraction Script
+### Scripts
 
-Create `scripts/extract_review_context.py` to:
-1. Get list of changed files using `git diff`
-2. Extract full file contents for changed files
-3. Find related files (imports, dependencies)
-4. Find test files
-5. Build dependency map
-6. Generate JSON payload
+The integration uses three Python scripts:
 
-### Agent Call Script
+**`scripts/extract_review_context.py`**
+- Extracts PR metadata from GitHub API
+- Gets changed files using `git diff`
+- Finds related files (imports, dependencies)
+- Finds test files
+- Builds JSON payload matching agent input schema
 
-Create `scripts/call_agent.py` to:
-1. Read JSON payload
-2. Authenticate with Google Cloud
-3. Call Agent Engine API
-4. Parse response
-5. Save to JSON file
+**`scripts/call_agent.py`**
+- Loads JSON payload
+- Authenticates with Google Cloud
+- Calls Agent Engine API with retry logic
+- Saves agent response as JSON
+
+**`scripts/post_review.py`**
+- Loads agent response
+- Posts summary as PR comment
+- Posts inline comments on specific lines
+- Optionally creates a GitHub review with status
 
 ## Error Handling
 

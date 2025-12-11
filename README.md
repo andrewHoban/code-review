@@ -13,6 +13,7 @@ This agent analyzes pull requests and provides structured feedback for Python an
 - **Structured Output**: JSON format ready for GitHub API integration
 - **Model Optimization**: Uses appropriate Gemini models for each task
 - **Production Ready**: Deployed to Agent Engine with observability
+- **Automated PR Reviews**: Automatically reviews PRs and posts comments via GitHub Actions
 
 ## Architecture
 
@@ -55,6 +56,20 @@ make test
 ```
 
 ## Usage
+
+### Automated PR Reviews
+
+The agent automatically reviews pull requests when they are opened or updated. The workflow:
+1. Extracts changed files and context from the PR
+2. Calls the deployed agent via Agent Engine API
+3. Posts review comments and summary on the PR
+
+**Setup:**
+- The workflow (`.github/workflows/pr-review.yml`) is already configured
+- Requires GitHub Secrets: `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`, `GCP_REGION`
+- Uses Workload Identity Federation for GCP authentication
+
+**Manual Usage:**
 
 The agent accepts structured JSON input with PR metadata and review context. See [`docs/integration_guide.md`](docs/integration_guide.md) for detailed integration instructions.
 

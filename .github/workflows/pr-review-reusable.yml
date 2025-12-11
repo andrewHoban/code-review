@@ -1,0 +1,113 @@
+name: PR Code Review (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        required: true
+        type: string
+        description: "GCP project ID"
+      location:
+        required: true
+        type: string
+        description: "GCP location/region"
+      agent_engine_id:
+        required: true
+        type: string
+        description: "Agent Engine ID"
+    secrets:
+      GCP_PROJECT_NUMBER:
+        required: true
+      GITHUB_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Checkout code-review agent
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.repository.owner.login }}/code-review
+          path: code-review-agent
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.10
+
+      - name: Install dependencies
+        working-directory: code-review-agent
+        run: uv sync
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+          service_account: 'github-actions-deployer@${{ inputs.project_id }}.iam.gserviceaccount.com'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Extract review context
+        id: extract
+        working-directory: code-review-agent
+        run: |
+          python scripts/extract_review_context.py \
+            --repo-path="${{ github.workspace }}" \
+            --pr-number=${{ github.event.pull_request.number }} \
+            --repository="${{ github.repository }}" \
+            --base-sha="${{ github.event.pull_request.base.sha }}" \
+            --head-sha="${{ github.event.pull_request.head.sha }}" \
+            --github-token="${{ secrets.GITHUB_TOKEN }}" \
+            --output=review_payload.json
+        continue-on-error: true
+
+      - name: Call code review agent
+        id: review
+        if: steps.extract.outcome == 'success'
+        working-directory: code-review-agent
+        run: |
+          python scripts/call_agent.py \
+            --payload=review_payload.json \
+            --output=review_response.json \
+            --project-id="${{ inputs.project_id }}" \
+            --location="${{ inputs.location }}" \
+            --agent-engine-id="${{ inputs.agent_engine_id }}"
+        continue-on-error: true
+
+      - name: Post review comments
+        if: steps.review.outcome == 'success'
+        working-directory: code-review-agent
+        run: |
+          python scripts/post_review.py \
+            --response=review_response.json \
+            --repository="${{ github.repository }}" \
+            --pr-number=${{ github.event.pull_request.number }} \
+            --github-token="${{ secrets.GITHUB_TOKEN }}" \
+            --create-review
+
+      - name: Handle errors
+        if: failure()
+        run: |
+          echo "Code review failed. This may be due to:"
+          echo "- No supported files in PR (Python/TypeScript only)"
+          echo "- Agent timeout or error"
+          echo "- GitHub API rate limits"
+          echo ""
+          echo "Please check the workflow logs for details."
