@@ -4,7 +4,10 @@ A demo multi-language code review agent for GitHub PRs, built with Google's Agen
 
 ## Overview
 
-This agent analyzes pull requests and provides structured feedback for Python and TypeScript code. It uses a multi-agent pipeline architecture with specialized agents for code analysis, style checking, test analysis, and feedback synthesis.
+This agent analyzes pull requests and provides structured feedback for Python and TypeScript code. It uses an **orchestrator pattern** with a multi-agent pipeline architecture:
+- **Orchestrator Agent**: Detects languages and routes to specialized pipelines
+- **Language Pipelines**: Sequential agents for code analysis, design checking, test analysis, and feedback synthesis
+- **Publisher Agent**: Formats final output as structured JSON for GitHub integration
 
 ## Features
 
@@ -17,23 +20,37 @@ This agent analyzes pull requests and provides structured feedback for Python an
 
 ## Architecture
 
+The agent uses an **orchestrator pattern** with a clear separation of concerns:
+
 ```
-Root Agent (gemini-3-pro-preview)
-  ├─ Language Detection Tool
-  ├─ Repository Context Tools
+Root Agent (SequentialAgent)
   │
-  ├─ Python Review Pipeline (Sequential)
-  │   ├─ Code Analyzer (gemini-3-pro-preview)
-  │   ├─ Style Checker (gemini-2.5-flash)
-  │   ├─ Test Analyzer (gemini-3-pro-preview)
-  │   └─ Feedback Synthesizer (gemini-2.5-pro)
+  ├─ Orchestrator Agent (CodeReviewOrchestrator)
+  │   ├─ Language Detection Tool
+  │   ├─ Repository Context Tools
+  │   │
+  │   ├─ Python Review Pipeline (Sequential)
+  │   │   ├─ Code Analyzer (gemini-2.5-pro)
+  │   │   ├─ Design Checker (gemini-2.5-pro)
+  │   │   ├─ Test Analyzer (gemini-2.5-pro)
+  │   │   └─ Feedback Synthesizer (gemini-2.5-pro)
+  │   │
+  │   └─ TypeScript Review Pipeline (Sequential)
+  │       ├─ Code Analyzer (gemini-2.5-pro)
+  │       ├─ Design Checker (gemini-2.5-pro)
+  │       ├─ Test Analyzer (gemini-2.5-pro)
+  │       └─ Feedback Synthesizer (gemini-2.5-pro)
   │
-  └─ TypeScript Review Pipeline (Sequential)
-      ├─ Code Analyzer (gemini-3-pro-preview)
-      ├─ Style Checker (gemini-2.5-flash)
-      ├─ Test Analyzer (gemini-3-pro-preview)
-      └─ Feedback Synthesizer (gemini-2.5-pro)
+  └─ Publisher Agent (ReviewPublisher)
+      └─ Formats final JSON output for GitHub
 ```
+
+**Execution Flow:**
+1. **Orchestrator Agent** receives PR context, detects languages, and delegates to appropriate pipelines
+2. **Language Pipelines** execute sequentially (Analyzer → Design → Test → Feedback)
+3. **Publisher Agent** synthesizes results from all pipelines into a single JSON output
+
+This pattern separates routing logic (orchestrator) from output formatting (publisher), making the system more maintainable and allowing independent optimization of each component.
 
 ## Quick Start
 
@@ -134,11 +151,11 @@ The agent accepts structured JSON input with PR metadata and review context. See
 app/
 ├── models/          # Input/output schemas
 ├── tools/           # Analysis tools
-├── agents/          # Review pipelines
+├── agents/          # Review pipelines (Python/TypeScript)
 ├── utils/           # Helper utilities
 ├── app_utils/       # Deployment and telemetry utilities
 ├── config.py        # Configuration
-├── agent.py         # Root orchestrator
+├── agent.py         # Orchestrator, publisher, and root agent definitions
 └── agent_engine_app.py  # Agent Engine entrypoint
 
 tests/
