@@ -119,7 +119,7 @@ def _extract_typescript_structure(code: str) -> dict[str, Any]:
 
     # Pattern for function declarations
     function_pattern = re.compile(
-        r"(?:export\s+)?(?:async\s+)?(?:function\s+)?(\w+)\s*[=:]?\s*(?:async\s+)?\([^)]*\)\s*[:=]?\s*(?:Promise<.*?>)?\s*\{",
+        r"(?:export\s+)?(?:async\s+)?(?:function\s+)?(\w+)\s*[=:]?\s*(?:async\s+)?\([^)]*\)\s*(?::\s*[^{]*)?\s*\{",
         re.MULTILINE,
     )
 
