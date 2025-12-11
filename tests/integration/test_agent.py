@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # mypy: disable-error-code="union-attr"
+import pytest
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
@@ -21,10 +22,16 @@ from google.genai import types
 from app.agent import root_agent
 
 
+@pytest.mark.skip(
+    reason="Makes real API calls to Gemini - skip in CI to avoid rate limits"
+)
 def test_agent_stream() -> None:
     """
     Integration test for the agent stream functionality.
     Tests that the agent returns valid streaming responses.
+
+    Note: This test makes real API calls to Gemini models and may hit rate limits.
+    Run manually when needed, or use pytest -m "not slow" to skip.
     """
 
     session_service = InMemorySessionService()
