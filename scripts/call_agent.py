@@ -49,22 +49,39 @@ def call_agent_with_retry(
             # Get the deployed agent using the direct module approach
             agent = agent_engines.get(resource_name=resource_name)
 
-            # Query the agent with the payload as input
-            response = agent.query(input=json.dumps(payload))
+            # Query the agent using stream_query with correct parameters
+            # Note: stream_query requires 'message' (not 'input') and 'user_id'
+            response_chunks = []
+            for chunk in agent.stream_query(
+                message=json.dumps(payload),
+                user_id="github-actions-pr-review",
+            ):
+                response_chunks.append(chunk)
+
+            # Check if we received any response
+            if not response_chunks:
+                raise Exception("No response chunks received from agent")
+
+            # Get the final response (typically the last chunk contains the complete response)
+            final_chunk = response_chunks[-1]
 
             # Parse response - the response format may vary
             # Try to extract text from the response
-            response_text = None
-            if isinstance(response, str):
-                response_text = response
-            elif hasattr(response, "text"):
-                response_text = response.text
-            elif hasattr(response, "content"):
-                response_text = response.content
-            elif hasattr(response, "response"):
-                response_text = response.response
+            response_text: str | None = None
+            if isinstance(final_chunk, str):
+                response_text = final_chunk
+            elif hasattr(final_chunk, "text"):
+                response_text = final_chunk.text
+            elif hasattr(final_chunk, "content"):
+                response_text = final_chunk.content
+            elif hasattr(final_chunk, "response"):
+                response_text = final_chunk.response
             else:
-                response_text = str(response)
+                response_text = str(final_chunk)
+
+            # Ensure we have a response text
+            if response_text is None:
+                raise Exception("Failed to extract response text from agent response")
 
             # Try to parse as JSON
             try:

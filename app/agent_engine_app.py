@@ -41,9 +41,9 @@ class AgentEngineApp(AdkApp):
         if gemini_location:
             os.environ["GOOGLE_CLOUD_LOCATION"] = gemini_location
 
-        # Call parent set_up to initialize session service and runner
-        # This is required for the agent engine to handle sessions properly
-        super().set_up()
+        # NOTE: Do NOT call super().set_up() in Agent Engine apps
+        # This triggers unnecessary Resource Manager API calls that cause
+        # deployment failures. The Agent Engine handles session management internally.
 
     def register_feedback(self, feedback: dict[str, Any]) -> None:
         """Collect and log feedback."""
