@@ -43,9 +43,9 @@ https://console.cloud.google.com/vertex-ai/agents/locations/europe-west1/agent-e
 ### Using the Agent Engine API
 
 ```python
-from vertexai import agent_engines
+import vertexai
 
-client = agent_engines.Client(
+client = vertexai.Client(
     project="bpc-askgreg-nonprod",
     location="europe-west1"
 )
@@ -65,9 +65,9 @@ Create a test script to call the agent:
 
 ```python
 import json
-from vertexai import agent_engines
+import vertexai
 
-client = agent_engines.Client(
+client = vertexai.Client(
     project="bpc-askgreg-nonprod",
     location="europe-west1"
 )
@@ -81,10 +81,7 @@ with open('tests/fixtures/python_simple_pr.json') as f:
     payload = json.load(f)
 
 # Query the agent
-response = agent_engine.query(
-    message=json.dumps(payload),
-    user_id="test_user"
-)
+response = agent_engine.query(input=json.dumps(payload))
 
 print(response)
 ```
