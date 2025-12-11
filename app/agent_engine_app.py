@@ -45,8 +45,11 @@ class AgentEngineApp(AdkApp):
 
         # Note: Context caching is configured at the App level in app/agent.py
         # This reduces token usage by 50-75% for repeated reviews
-        self.logger.info(
-            "Agent engine app initialized (context caching configured in App)"
+        self.logger.log_struct(
+            {
+                "message": "Agent engine app initialized (context caching configured in App)"
+            },
+            severity="INFO",
         )
 
         # Call parent set_up to initialize session service and runner
