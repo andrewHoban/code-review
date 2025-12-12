@@ -1,6 +1,6 @@
 # Testing Guidelines for Code Review Agent
 
-This document outlines the comprehensive testing strategy for the multi-language GitHub PR code review agent.
+This document outlines the comprehensive testing strategy for the GitHub PR code review agent.
 
 ## Table of Contents
 
@@ -29,19 +29,19 @@ Our testing approach follows these principles:
 
 ```
         /\
-       /E2E\          5% - Full PR review flows
+       /E2E\          5% - Full PR review flows with real API calls
       /------\
-     /  INT   \       25% - Pipeline integration tests
+     /  INT   \       25% - Agent configuration and integration
     /----------\
-   /   UNIT     \     70% - Tool and function tests
+   /   UNIT     \     70% - Utility functions and validation
   /--------------\
 ```
 
 ### Distribution Rationale
 
 - **70% Unit Tests**: Fast, isolated, catch bugs early
-- **25% Integration Tests**: Verify agent orchestration and state flow
-- **5% End-to-End Tests**: Validate complete system behavior
+- **25% Integration Tests**: Verify agent configuration and behavior
+- **5% End-to-End Tests**: Validate complete system behavior with real LLM calls
 
 ## Testing Levels
 
@@ -59,32 +59,32 @@ Our testing approach follows these principles:
 
 **Example Structure:**
 ```python
-# tests/unit/test_python_tools.py
+# tests/unit/test_security.py
 import pytest
-from app.tools.python_tools import analyze_python_structure
+from app.utils.security import sanitize_file_path, validate_content_size
 
-def test_analyze_python_structure_simple_function():
-    """Test AST analysis of a simple Python function."""
-    code = """
-def add(a, b):
-    return a + b
-"""
-    result = analyze_python_structure(code)
+def test_sanitize_file_path_valid():
+    """Test path sanitization with valid path."""
+    from pathlib import Path
+    result = sanitize_file_path("src/main.py", Path("/repo"))
+    assert result.name == "main.py"
 
-    assert result['functions'] == [{'name': 'add', 'args': ['a', 'b']}]
-    assert result['function_count'] == 1
+def test_validate_content_size_too_large():
+    """Test content size validation rejects large content."""
+    large_content = "x" * 1000000
+    with pytest.raises(ValueError, match="too large"):
+        validate_content_size(large_content, 100000)
 ```
 
 **What to Test:**
-- Tool functions with various inputs
-- Edge cases (empty code, syntax errors, large files)
+- Utility functions (input preparation, security validation)
+- Edge cases (empty input, invalid data, large files)
 - Error handling
-- State management helpers
-- Output formatting functions
+- Input/output schema validation
+- Security functions (path sanitization, content validation)
 
 **Mocking Strategy:**
 - Mock file system operations
-- Mock subprocess calls (ESLint, pycodestyle)
 - Mock external API calls
 - Use fixtures for common test data
 
@@ -103,43 +103,37 @@ def add(a, b):
 
 **Example Structure:**
 ```python
-# tests/integration/test_python_pipeline.py
+# tests/integration/test_agent.py
 import pytest
-from unittest.mock import MagicMock
-from app.tools.python_tools import analyze_python_structure, PythonStateKeys
+from app.agent import root_agent
 
-@pytest.mark.asyncio
-async def test_python_structure_analysis_tool_execution():
-    """Test that Python structure analysis tool executes correctly."""
-    tool_context = MagicMock()
-    tool_context.state = {}
+def test_root_agent_has_correct_structure():
+    """Test that root agent is configured correctly."""
+    assert root_agent.name == "CodeReviewer"
+    assert root_agent.description is not None
+    assert root_agent.instruction is not None
+    assert root_agent.output_key == "code_review_output"
 
-    code = "def add(a, b): return a + b"
-    result = await analyze_python_structure(code, tool_context)
-
-    # Validate actual behavior
-    assert result["status"] == "success"
-    assert result["analysis"]["metrics"]["function_count"] == 1
-    assert PythonStateKeys.CODE_TO_REVIEW in tool_context.state
-    assert tool_context.state[PythonStateKeys.CODE_LINE_COUNT] == 1
+def test_agent_output_key_is_configured():
+    """Test that root agent has output key configured."""
+    assert root_agent.output_key is not None
+    assert root_agent.output_key == "code_review_output"
 ```
 
 **What to Test:**
-- Tool execution with various inputs
-- State storage and retrieval between tools
-- Input preparation and parsing utilities
-- Language detection logic
-- Error handling (syntax errors, missing data, invalid input)
-- Edge cases (empty input, unknown files, malformed data)
 - Agent configuration and structure
+- Input preparation and parsing utilities
+- Error handling (invalid input, malformed data)
+- Edge cases (empty input, missing files, malformed JSON)
+- Agent Engine app setup and feedback handling
 
 **Test Data:**
 - Use realistic but minimal test data
-- Include edge cases (empty inputs, syntax errors, missing files)
+- Include edge cases (empty inputs, missing files)
 - Test both Python and TypeScript scenarios
 - Mock external dependencies (no real API calls)
 
-**Important:** Integration tests should NOT make real LLM API calls. Use mocked `ToolContext` objects. Real API tests belong in `tests/e2e/`.
+**Important:** Integration tests should NOT make real LLM API calls. Real API tests belong in `tests/e2e/`.
 
 ### 3. End-to-End Tests (5% of tests)
 
@@ -149,7 +143,7 @@ async def test_python_structure_analysis_tool_execution():
 
 **Characteristics:**
 - Make real API calls to Gemini models (slow - 20+ seconds per test)
-- Test full pipeline execution with actual LLM responses
+- Test complete agent execution with actual LLM responses
 - Validate end-to-end behavior
 - Use realistic PR payload examples
 - Marked with `@pytest.mark.e2e` and `@pytest.mark.slow`
@@ -210,24 +204,17 @@ pytest -m "not e2e"
 ```
 tests/
 ├── unit/
-│   ├── test_python_tools.py
-│   ├── test_typescript_tools.py
-│   ├── test_language_detection.py
-│   ├── test_repo_context.py
-│   └── test_output_formatter.py
+│   ├── test_security.py
+│   ├── test_error_handling.py
+│   └── test_repo_context.py (if repo_context tool is used)
 ├── integration/
-│   ├── test_python_pipeline.py
-│   ├── test_typescript_pipeline.py
-│   ├── test_language_routing.py
-│   └── test_multi_language.py
+│   ├── test_agent.py
+│   └── test_agent_engine_app.py
 ├── e2e/
-│   ├── test_full_pr_review.py
-│   └── test_error_scenarios.py
+│   └── test_real_api_calls.py
 ├── fixtures/
-│   ├── python_simple.py
-│   ├── typescript_simple.ts
-│   ├── real_python_pr.json
-│   └── multi_language_pr.json
+│   ├── python_simple_pr.json
+│   └── typescript_simple_pr.json
 └── conftest.py  # Shared fixtures
 ```
 
@@ -262,14 +249,14 @@ pytest -m "not slow"  # Skip slow tests
 ```python
 def test_example():
     # Arrange - Set up test data
-    code = "def hello(): pass"
-    expected_functions = 1
+    from app.utils.input_preparation import parse_review_input
+    json_input = '{"pr_metadata": {"pr_number": 1, ...}}'
 
     # Act - Execute the function
-    result = analyze_python_structure(code)
+    result = parse_review_input(json_input)
 
     # Assert - Verify results
-    assert result['function_count'] == expected_functions
+    assert result.pr_metadata.pr_number == 1
 ```
 
 ### Async Test Pattern
@@ -321,24 +308,18 @@ def minimal_pr_input(sample_python_file):
     )
 ```
 
-### Testing Tools with Mocking
+### Testing Utilities with Mocking
 
 ```python
 from unittest.mock import patch, MagicMock
+from app.utils.input_preparation import parse_review_input
 
-def test_style_checker_with_mock():
-    """Test style checker without actually running pycodestyle."""
-    with patch('subprocess.run') as mock_run:
-        # Mock pycodestyle output
-        mock_run.return_value = MagicMock(
-            stdout="src/test.py:5:1: E302 expected 2 blank lines",
-            returncode=1
-        )
+def test_parse_review_input_with_invalid_json():
+    """Test input parsing handles invalid JSON gracefully."""
+    invalid_json = "{ invalid json }"
 
-        result = check_python_style("def test(): pass")
-
-        assert result['issue_count'] == 1
-        assert result['issues'][0]['line'] == 5
+    with pytest.raises(ValueError, match="Invalid JSON format"):
+        parse_review_input(invalid_json)
 ```
 
 ## Test Data Management
@@ -467,7 +448,7 @@ pytest --cov=app --cov-report=term-missing -m "not e2e"
 pytest tests/unit/test_python_tools.py
 
 # Run specific test
-pytest tests/unit/test_python_tools.py::test_analyze_python_structure
+pytest tests/unit/test_security.py::test_sanitize_file_path_valid
 
 # Skip slow tests (includes E2E)
 pytest -m "not slow"
@@ -488,15 +469,19 @@ pytest -m "not slow"
 # tests/performance/test_latency.py
 import pytest
 import time
+from app.agent import root_agent
+from google.adk.runners import Runner
 
 @pytest.mark.performance
-def test_python_pipeline_latency():
-    """Ensure Python pipeline completes within target time."""
+@pytest.mark.e2e
+def test_agent_review_latency():
+    """Ensure agent completes review within target time."""
     start = time.time()
-    result = run_python_pipeline(test_input)
+    # Run agent with test input
+    result = run_agent_review(root_agent, test_input)
     duration = time.time() - start
 
-    assert duration < 30.0, f"Pipeline took {duration}s, target is <30s"
+    assert duration < 60.0, f"Review took {duration}s, target is <60s"
 ```
 
 ### Load Testing
@@ -509,62 +494,51 @@ For production deployment, test with:
 
 ## Integration Testing
 
-### Testing Agent Orchestration
+### Testing Agent Configuration
 
 ```python
 @pytest.mark.integration
-async def test_language_detection_routing():
-    """Test that root agent correctly routes to language pipelines."""
-    input_data = create_multi_language_pr(['python', 'typescript'])
+def test_root_agent_configuration():
+    """Test that root agent is properly configured."""
+    from app.agent import root_agent
 
-    result = await run_agent(root_agent, input_data)
-
-    # Verify both pipelines were invoked
-    assert 'python' in result.summary.lower()
-    assert 'typescript' in result.summary.lower()
+    assert root_agent.name == "CodeReviewer"
+    assert root_agent.output_key == "code_review_output"
+    assert "STATIC_REVIEW_CONTEXT" in root_agent.instruction
+    assert root_agent.model is not None
 ```
 
-### Testing State Flow
+### Testing Agent Engine App
 
 ```python
 @pytest.mark.integration
-async def test_state_persistence_across_agents():
-    """Verify state flows correctly through pipeline."""
-    # Run first agent
-    state_after_analyzer = await run_agent(code_analyzer, input_data)
+def test_agent_engine_app_setup():
+    """Test AgentEngineApp initializes correctly."""
+    from app.agent_engine_app import agent_engine
 
-    # Run second agent with same state
-    state_after_style = await run_agent(
-        style_checker,
-        input_data,
-        initial_state=state_after_analyzer.state
-    )
-
-    # Verify state was preserved
-    assert 'code_analysis' in state_after_style.state
+    agent_engine.set_up()
+    assert agent_engine.logger is not None
+    assert agent_engine._tmpl_attrs.get("agent") is not None
 ```
 
 ### Testing Error Handling
 
 ```python
 @pytest.mark.integration
-async def test_pipeline_handles_syntax_errors():
-    """Test pipeline gracefully handles syntax errors."""
-    input_data = create_pr_with_syntax_error()
+def test_agent_handles_invalid_input():
+    """Test agent gracefully handles invalid input."""
+    from app.utils.input_preparation import parse_review_input
 
-    result = await run_pipeline(python_review_pipeline, input_data)
-
-    # Should still produce output, but flag the error
-    assert result.overall_status == 'NEEDS_CHANGES'
-    assert any('syntax error' in c.body.lower()
-               for c in result.inline_comments)
+    invalid_input = "not json at all"
+    with pytest.raises(ValueError):
+        parse_review_input(invalid_input)
 ```
 
 ## Best Practices
 
 1. **Write tests first** (TDD) for complex logic
 2. **Test behavior, not implementation** - Focus on what, not how
-3. **Use descriptive test names** - `test_analyze_python_structure_with_nested_classes()` not `test_analyze()`
+3. **Use descriptive test names** - `test_sanitize_file_path_blocks_traversal()` not `test_sanitize()`
 4. **Keep tests independent** - No shared state between tests
 5. **Mock external dependencies** - Don't call real APIs in unit tests
 6. **Test edge cases** - Empty inputs, None values, large inputs

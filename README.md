@@ -4,7 +4,7 @@ A demo multi-language code review agent for GitHub PRs, built with Google's Agen
 
 ## Overview
 
-This agent analyzes pull requests and provides structured feedback for Python and TypeScript code. It uses a multi-agent pipeline architecture with specialized agents for code analysis, style checking, test analysis, and feedback synthesis.
+This agent analyzes pull requests and provides structured feedback for Python and TypeScript code. It uses a single LLM-based agent that performs comprehensive code review using direct reasoning, applying review principles for correctness, security, performance, design quality, and test coverage.
 
 ## 🚀 Quick Start: Deployment
 
@@ -29,32 +29,30 @@ make deploy-webhook      # Deploy webhook (requires GITHUB_APP_ID env var)
 
 ## Features
 
-- **Multi-Language Support**: Python and TypeScript with extensible architecture
-- **Repository Context**: Analyzes related files and dependencies
-- **Structured Output**: JSON format ready for GitHub API integration
-- **Model Optimization**: Uses appropriate Gemini models for each task
-- **Production Ready**: Deployed to Agent Engine with observability
+- **Multi-Language Support**: Python and TypeScript with unified review approach
+- **Comprehensive Review**: Checks correctness, security, performance, design, and test quality
+- **Structured Output**: Markdown format with inline comments ready for GitHub API integration
+- **Efficient Architecture**: Single LLM agent with optimized prompt engineering
+- **Production Ready**: Deployed to Agent Engine with observability and telemetry
 - **Automated PR Reviews**: Automatically reviews PRs and posts comments via GitHub Actions
 
 ## Architecture
 
 ```
-Root Agent (gemini-3-pro-preview)
-  ├─ Language Detection Tool
-  ├─ Repository Context Tools
+CodeReviewer Agent (gemini-2.5-pro)
   │
-  ├─ Python Review Pipeline (Sequential)
-  │   ├─ Code Analyzer (gemini-3-pro-preview)
-  │   ├─ Style Checker (gemini-2.5-flash)
-  │   ├─ Test Analyzer (gemini-3-pro-preview)
-  │   └─ Feedback Synthesizer (gemini-2.5-pro)
-  │
-  └─ TypeScript Review Pipeline (Sequential)
-      ├─ Code Analyzer (gemini-3-pro-preview)
-      ├─ Style Checker (gemini-2.5-flash)
-      ├─ Test Analyzer (gemini-3-pro-preview)
-      └─ Feedback Synthesizer (gemini-2.5-pro)
+  └─ Single LLM Agent
+      ├─ Receives: PR metadata + changed files + context
+      ├─ Applies: Review principles (correctness, security, design, tests)
+      └─ Returns: Structured markdown review with inline comments
 ```
+
+The agent uses direct LLM reasoning to analyze code, applying comprehensive review principles for:
+- **Correctness**: Logic errors, edge cases, resource leaks
+- **Security**: Injection vulnerabilities, secrets, input validation
+- **Performance**: Obvious bottlenecks, N+1 queries
+- **Design**: SOLID, DRY, YAGNI principles
+- **Test Quality**: Coverage gaps, test anti-patterns
 
 ## Quick Start
 
@@ -154,12 +152,12 @@ The agent accepts structured JSON input with PR metadata and review context. See
 ```
 app/
 ├── models/          # Input/output schemas
-├── tools/           # Analysis tools
-├── agents/          # Review pipelines
-├── utils/           # Helper utilities
+├── prompts/         # Review principles and context
+├── tools/           # Repository context tools (optional)
+├── utils/           # Helper utilities (input prep, security)
 ├── app_utils/       # Deployment and telemetry utilities
 ├── config.py        # Configuration
-├── agent.py         # Root orchestrator
+├── agent.py         # Single code review agent
 └── agent_engine_app.py  # Agent Engine entrypoint
 
 tests/
