@@ -48,11 +48,19 @@ MAX_FILE_SIZE = MAX_FILE_CONTENT_SIZE
 # Maximum reverse dependencies (files that import changed files) per changed file
 MAX_REVERSE_DEPENDENCIES = int(os.getenv("MAX_REVERSE_DEPENDENCIES", "10"))
 
-# Language detection patterns
+# Language detection patterns - matches agent capabilities
+# Note: .h files are matched by both "cpp" and "c" patterns.
+# Since "cpp" is checked first, .h files will be detected as "cpp".
+# This matches the agent's language detection behavior.
 LANGUAGE_PATTERNS = {
-    "python": [r"\.py$", r"\.pyi$"],
+    "python": [r"\.py$", r"\.pyi$", r"\.pyx$"],
     "typescript": [r"\.ts$", r"\.tsx$"],
     "javascript": [r"\.js$", r"\.jsx$"],
+    "java": [r"\.java$"],
+    "go": [r"\.go$"],
+    "rust": [r"\.rs$"],
+    "cpp": [r"\.cpp$", r"\.cc$", r"\.cxx$", r"\.hpp$", r"\.h$"],
+    "c": [r"\.c$", r"\.h$"],
 }
 
 # Test file patterns
@@ -60,6 +68,11 @@ TEST_PATTERNS = {
     "python": [r"test_.*\.py$", r".*_test\.py$", r".*tests?/.*\.py$"],
     "typescript": [r".*\.test\.tsx?$", r".*\.spec\.tsx?$", r".*tests?/.*\.tsx?$"],
     "javascript": [r".*\.test\.jsx?$", r".*\.spec\.jsx?$", r".*tests?/.*\.jsx?$"],
+    "java": [r".*Test\.java$", r".*Tests\.java$", r".*tests?/.*\.java$"],
+    "go": [r".*_test\.go$", r".*tests?/.*\.go$"],
+    "rust": [r".*_test\.rs$", r".*tests?/.*\.rs$"],
+    "cpp": [r".*_test\.cpp$", r".*test.*\.cpp$", r".*tests?/.*\.cpp$"],
+    "c": [r".*_test\.c$", r".*test.*\.c$", r".*tests?/.*\.c$"],
 }
 
 
@@ -171,12 +184,18 @@ def find_related_files(
     head_sha: str | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, list[str]]:
-    """Find files related to changed files (imports, dependencies) with security validation."""
-    related = {}
+    """Find files related to changed files (imports, dependencies) with security validation.
+
+    Currently only supports Python, TypeScript, and JavaScript import detection.
+    Other languages will be skipped gracefully.
+    """
+    related: dict[str, list[str]] = {}
 
     for file_path in changed_files:
         language = detect_language(file_path)
-        if not language:
+        # Only process languages where we can detect imports
+        if not language or language not in ["python", "typescript", "javascript"]:
+            related[file_path] = []  # Empty list for unsupported languages
             continue
 
         try:
@@ -245,14 +264,18 @@ def find_related_files(
 def find_test_files(
     repo: Repo, changed_files: list[str], head_sha: str | None = None
 ) -> dict[str, list[str]]:
-    """Find test files for changed files."""
+    """Find test files for changed files.
+
+    Works for all detected languages using language-specific test patterns.
+    """
     test_files = {}
     repo_root = Path(repo.working_dir)
 
     for file_path in changed_files:
         language = detect_language(file_path)
         if not language:
-            continue
+            # Unknown language - try generic test patterns
+            language = "unknown"
 
         file_stem = Path(file_path).stem
         file_dir = Path(file_path).parent
@@ -283,15 +306,28 @@ def find_test_files(
                     continue
 
                 test_lang = detect_language(test_path)
-                if test_lang == language and is_test_file(test_path, test_lang):
-                    # Check if test file name suggests it tests this file
-                    test_stem = test_file.stem
-                    if (
-                        file_stem in test_stem
-                        or test_stem.replace("test_", "").replace("_test", "")
-                        == file_stem
-                    ):
-                        potential_tests.append(test_path)
+                # Match test language to file language
+                if test_lang == language or (language == "unknown" and test_lang):
+                    # Check if it's a test file
+                    # For unknown languages, use generic name-based matching
+                    is_test = (
+                        is_test_file(test_path, test_lang)
+                        if test_lang and test_lang != "unknown"
+                        else test_file.name.lower().startswith("test")
+                        or "test" in test_file.name.lower()
+                    )
+                    if is_test:
+                        # Check if test file name suggests it tests this file
+                        test_stem = test_file.stem
+                        # Generic matching: test file name contains source file name
+                        normalized_test = (
+                            test_stem.replace("test_", "")
+                            .replace("_test", "")
+                            .replace("Test", "")
+                            .replace("Tests", "")
+                        )
+                        if file_stem in test_stem or normalized_test == file_stem:
+                            potential_tests.append(test_path)
 
         test_files[file_path] = potential_tests[
             :3
@@ -430,11 +466,10 @@ def extract_review_context(
             pass
 
         language = detect_language(file_path)
-        if not language or language not in ["python", "typescript"]:
-            skipped_files.append(
-                (file_path, f"unsupported language ({language or 'unknown'})")
-            )
-            continue
+        # Process all detected languages - no restriction
+        if not language:
+            # Unknown file type - still process it with "unknown" language
+            language = "unknown"
 
         # Get diff with security validation
         diff = get_diff(repo, base_sha, head_sha, file_path, repo_root)
@@ -482,9 +517,9 @@ def extract_review_context(
         )
         processed_files.append(changed_file)
 
-    # Handle case where no supported files are found
+    # Handle case where no files were processed
     if not processed_files:
-        print("Info: No supported files (Python/TypeScript) found in PR.")
+        print("Info: No processable files found in PR.")
         if skipped_files:
             print(f"Found {len(skipped_files)} changed file(s) that were skipped:")
             for file_path, reason in skipped_files[:10]:  # Show up to 10 skipped files
@@ -493,9 +528,6 @@ def extract_review_context(
                 print(f"  ... and {len(skipped_files) - 10} more")
         else:
             print("No changed files detected in this PR.")
-        print(
-            "This PR may contain only non-code files, documentation, or unsupported languages."
-        )
         # Continue to create a valid payload with empty lists
         # The workflow can check if changed_files is empty to skip the review step
 
@@ -553,9 +585,11 @@ def extract_review_context(
             except Exception:
                 pass
 
-    # Build dependency map
+    # Build dependency map for all changed files
     dependency_map = {}
-    for file_path, related_paths in related_map.items():
+    for changed_file in processed_files:
+        file_path = changed_file.path
+        related_paths = related_map.get(file_path, [])
         dependency_map[file_path] = FileDependencies(
             imports=related_paths[:10],  # Limit imports
             imported_by=[],  # Would need reverse lookup
