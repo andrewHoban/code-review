@@ -313,8 +313,10 @@ def find_test_files(
                     is_test = (
                         is_test_file(test_path, test_lang)
                         if test_lang and test_lang != "unknown"
-                        else test_file.name.lower().startswith("test")
-                        or "test" in test_file.name.lower()
+                        else (
+                            test_file.name.lower().startswith("test")
+                            or "test" in test_file.name.lower()
+                        )
                     )
                     if is_test:
                         # Check if test file name suggests it tests this file
