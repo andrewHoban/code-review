@@ -24,7 +24,7 @@ from app.agents.typescript_review_pipeline import typescript_review_pipeline
 
 def test_root_agent_has_correct_structure() -> None:
     """Test that root agent is configured correctly."""
-    assert root_agent.name == "CodeReviewOrchestrator"
+    assert root_agent.name == "CodeReviewer"
     assert root_agent.description is not None
     assert len(root_agent.description) > 0
     assert root_agent.instruction is not None
