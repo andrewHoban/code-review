@@ -73,14 +73,14 @@ def test_python_pipeline_has_sub_agents() -> None:
     """Test that Python pipeline has the expected sub-agents."""
     assert len(python_review_pipeline.sub_agents) > 0
     sub_agent_names = [agent.name for agent in python_review_pipeline.sub_agents]
-    # Should have analyzer, design checker, test analyzer, and synthesizer
+    # Optimized pipeline: CodeAnalyzer (structure + design + style) and FeedbackReviewer (test + synthesis)
     assert any("analyzer" in name.lower() for name in sub_agent_names)
-    assert any("design" in name.lower() for name in sub_agent_names)
-    assert any("test" in name.lower() for name in sub_agent_names)
     assert any(
         "synthesizer" in name.lower() or "feedback" in name.lower()
         for name in sub_agent_names
     )
+    # Verify we have exactly 2 agents (optimized from 4)
+    assert len(python_review_pipeline.sub_agents) == 2
 
 
 def test_typescript_pipeline_is_sequential_agent() -> None:
@@ -96,14 +96,14 @@ def test_typescript_pipeline_has_sub_agents() -> None:
     """Test that TypeScript pipeline has the expected sub-agents."""
     assert len(typescript_review_pipeline.sub_agents) > 0
     sub_agent_names = [agent.name for agent in typescript_review_pipeline.sub_agents]
-    # Should have analyzer, design checker, test analyzer, and synthesizer
+    # Optimized pipeline: CodeAnalyzer (structure + design + style) and FeedbackReviewer (test + synthesis)
     assert any("analyzer" in name.lower() for name in sub_agent_names)
-    assert any("design" in name.lower() for name in sub_agent_names)
-    assert any("test" in name.lower() for name in sub_agent_names)
     assert any(
         "synthesizer" in name.lower() or "feedback" in name.lower()
         for name in sub_agent_names
     )
+    # Verify we have exactly 2 agents (optimized from 4)
+    assert len(typescript_review_pipeline.sub_agents) == 2
 
 
 def test_python_pipeline_agents_have_tools() -> None:
