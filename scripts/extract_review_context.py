@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 from git import Repo
@@ -408,12 +409,14 @@ def extract_review_context(
 
     # Process changed files
     processed_files = []
+    skipped_files = []  # Track skipped files for better error messages
     for file_path, status_char in changed_paths:
         # Validate and sanitize file path
         try:
             sanitize_file_path(file_path, repo_root)
         except ValueError as e:
             print(f"Skipping invalid file path {file_path}: {e}")
+            skipped_files.append((file_path, "invalid path"))
             continue
 
         # Skip binary and large files
@@ -421,12 +424,16 @@ def extract_review_context(
             file_size = os.path.getsize(os.path.join(repo_path, file_path))
             if file_size > MAX_FILE_SIZE:
                 print(f"Skipping large file: {file_path} ({file_size} bytes)")
+                skipped_files.append((file_path, f"too large ({file_size} bytes)"))
                 continue
         except Exception:
             pass
 
         language = detect_language(file_path)
         if not language or language not in ["python", "typescript"]:
+            skipped_files.append(
+                (file_path, f"unsupported language ({language or 'unknown'})")
+            )
             continue
 
         # Get diff with security validation
@@ -475,8 +482,22 @@ def extract_review_context(
         )
         processed_files.append(changed_file)
 
+    # Handle case where no supported files are found
     if not processed_files:
-        raise ValueError("No supported files found in PR")
+        print("Info: No supported files (Python/TypeScript) found in PR.")
+        if skipped_files:
+            print(f"Found {len(skipped_files)} changed file(s) that were skipped:")
+            for file_path, reason in skipped_files[:10]:  # Show up to 10 skipped files
+                print(f"  - {file_path}: {reason}")
+            if len(skipped_files) > 10:
+                print(f"  ... and {len(skipped_files) - 10} more")
+        else:
+            print("No changed files detected in this PR.")
+        print(
+            "This PR may contain only non-code files, documentation, or unsupported languages."
+        )
+        # Continue to create a valid payload with empty lists
+        # The workflow can check if changed_files is empty to skip the review step
 
     # OPTIMIZATION: Related files loaded on-demand via get_related_file_tool
     # Only store paths, not content - agents can load when needed
@@ -584,10 +605,16 @@ def main() -> None:
         with open(args.output, "w") as f:
             json.dump(input_data.model_dump(), f, indent=2)
 
-        print(
-            f"Successfully extracted review context: {len(input_data.review_context.changed_files)} files"
-        )
-        print(f"Output written to: {args.output}")
+        num_files = len(input_data.review_context.changed_files)
+        if num_files == 0:
+            print("No supported files found in PR. Review will be skipped.")
+            print(f"Output written to: {args.output}")
+            # Exit with code 2 to indicate "no work to do" (not an error)
+            # This allows workflows to skip the review step gracefully
+            sys.exit(2)
+        else:
+            print(f"Successfully extracted review context: {num_files} files")
+            print(f"Output written to: {args.output}")
 
     except Exception as e:
         print(f"Error: {e}")
