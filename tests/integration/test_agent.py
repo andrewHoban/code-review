@@ -44,6 +44,9 @@ def test_agent_stream() -> None:
     """
 
 
+@pytest.mark.skip(
+    "Agent architecture changed to single LLM-based agent without explicit tools"
+)
 def test_root_agent_has_language_detection_tool() -> None:
     """Test that root agent has language detection tool."""
     tool_names = [tool.name for tool in root_agent.tools]
@@ -52,6 +55,7 @@ def test_root_agent_has_language_detection_tool() -> None:
     )
 
 
+@pytest.mark.skip("Agent architecture changed to single agent without sub-agents")
 def test_root_agent_has_sub_agents() -> None:
     """Test that root agent has sub-agents for language pipelines."""
     assert len(root_agent.sub_agents) > 0
