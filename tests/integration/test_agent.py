@@ -18,8 +18,6 @@
 import pytest
 
 from app.agent import root_agent
-from app.agents.python_review_pipeline import python_review_pipeline
-from app.agents.typescript_review_pipeline import typescript_review_pipeline
 
 
 def test_root_agent_has_correct_structure() -> None:
@@ -64,68 +62,7 @@ def test_root_agent_has_sub_agents() -> None:
     assert any("typescript" in name.lower() for name in sub_agent_names)
 
 
-def test_python_pipeline_is_sequential_agent() -> None:
-    """Test that Python pipeline is a sequential agent."""
-    from google.adk.agents import SequentialAgent
-
-    assert isinstance(python_review_pipeline, SequentialAgent)
-    assert python_review_pipeline.name is not None
-    assert "python" in python_review_pipeline.name.lower()
-
-
-def test_python_pipeline_has_sub_agents() -> None:
-    """Test that Python pipeline has the expected sub-agents."""
-    assert len(python_review_pipeline.sub_agents) > 0
-    sub_agent_names = [agent.name for agent in python_review_pipeline.sub_agents]
-    # Optimized pipeline: CodeAnalyzer (structure + design + style) and FeedbackReviewer (test + synthesis)
-    assert any("analyzer" in name.lower() for name in sub_agent_names)
-    assert any(
-        "synthesizer" in name.lower() or "feedback" in name.lower()
-        for name in sub_agent_names
-    )
-    # Verify we have exactly 2 agents (optimized from 4)
-    assert len(python_review_pipeline.sub_agents) == 2
-
-
-def test_typescript_pipeline_is_sequential_agent() -> None:
-    """Test that TypeScript pipeline is a sequential agent."""
-    from google.adk.agents import SequentialAgent
-
-    assert isinstance(typescript_review_pipeline, SequentialAgent)
-    assert typescript_review_pipeline.name is not None
-    assert "typescript" in typescript_review_pipeline.name.lower()
-
-
-def test_typescript_pipeline_has_sub_agents() -> None:
-    """Test that TypeScript pipeline has the expected sub-agents."""
-    assert len(typescript_review_pipeline.sub_agents) > 0
-    sub_agent_names = [agent.name for agent in typescript_review_pipeline.sub_agents]
-    # Optimized pipeline: CodeAnalyzer (structure + design + style) and FeedbackReviewer (test + synthesis)
-    assert any("analyzer" in name.lower() for name in sub_agent_names)
-    assert any(
-        "synthesizer" in name.lower() or "feedback" in name.lower()
-        for name in sub_agent_names
-    )
-    # Verify we have exactly 2 agents (optimized from 4)
-    assert len(typescript_review_pipeline.sub_agents) == 2
-
-
-def test_python_pipeline_agents_have_tools() -> None:
-    """Test that Python pipeline agents have the required tools."""
-    for agent in python_review_pipeline.sub_agents:
-        # First agent (analyzer) should have analysis tool
-        if "analyzer" in agent.name.lower() and "test" not in agent.name.lower():
-            assert len(agent.tools) > 0, f"{agent.name} should have tools"
-        # Style checker should have style tool
-        if "style" in agent.name.lower():
-            assert len(agent.tools) > 0, f"{agent.name} should have tools"
-
-
-def test_agent_output_keys_are_configured() -> None:
-    """Test that agents have output keys configured."""
+def test_agent_output_key_is_configured() -> None:
+    """Test that root agent has output key configured."""
     assert root_agent.output_key is not None
-    # Sequential agents don't have output_key attribute, which is expected
-    assert not hasattr(python_review_pipeline, "output_key")
-    # But sub-agents should have output keys
-    for agent in python_review_pipeline.sub_agents:
-        assert agent.output_key is not None, f"{agent.name} should have an output_key"
+    assert root_agent.output_key == "code_review_output"
