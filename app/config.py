@@ -18,48 +18,20 @@ import os
 
 # Model configuration
 # Note: gemini-3-pro-preview is not available in europe-west1
-# Using gemini-2.5-pro for all agents for consistent quality
+# Using gemini-2.5-pro for the single-agent architecture
 
-# Language detection needs intelligence to handle edge cases
+# Primary model with fallback to free open source model for reliability
+# The fallback model will be used automatically when the primary model hits
+# token/quota limits via the retry mechanism in scripts/call_agent.py or by
+# Vertex AI's built-in retry logic.
 LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", "gemini-2.5-pro")
-
-# Code analysis requires complex reasoning - use 2.5-pro
-CODE_ANALYZER_MODEL = os.getenv("CODE_ANALYZER_MODEL", "gemini-2.5-pro")
-
-# Style checking needs to understand design principles - use 2.5-pro
-STYLE_CHECKER_MODEL = os.getenv("STYLE_CHECKER_MODEL", "gemini-2.5-pro")
-
-# Test analysis requires complex reasoning - use 2.5-pro
-TEST_ANALYZER_MODEL = os.getenv("TEST_ANALYZER_MODEL", "gemini-2.5-pro")
-
-# Feedback synthesis needs good reasoning - use 2.5-pro
-FEEDBACK_SYNTHESIZER_MODEL = os.getenv("FEEDBACK_SYNTHESIZER_MODEL", "gemini-2.5-pro")
+LANGUAGE_DETECTOR_FALLBACK_MODEL = os.getenv(
+    "LANGUAGE_DETECTOR_FALLBACK_MODEL", "publishers/google/models/llama-4"
+)
 
 # Review configuration
 MAX_INLINE_COMMENTS = int(os.getenv("MAX_INLINE_COMMENTS", "50"))
 REVIEW_TIMEOUT_SECONDS = int(os.getenv("REVIEW_TIMEOUT_SECONDS", "300"))
 
-# Style checking configuration
-PYTHON_STYLE_IGNORE = os.getenv("PYTHON_STYLE_IGNORE", "E501,W503").split(
-    ","
-)  # Line length, line break before binary operator
-TYPESCRIPT_STYLE_CONFIG = os.getenv("TYPESCRIPT_STYLE_CONFIG", ".eslintrc.json")
-
-# Style score weights for Python code review
-PYTHON_STYLE_WEIGHTS = {
-    "E1": 10,  # Indentation errors
-    "E2": 3,  # Whitespace errors
-    "E3": 5,  # Blank line errors
-    "E4": 8,  # Import errors
-    "E5": 5,  # Line length
-    "E7": 7,  # Statement errors
-    "E9": 10,  # Syntax errors
-    "W2": 2,  # Whitespace warnings
-    "W3": 2,  # Blank line warnings
-    "W5": 3,  # Line break warnings
-    "N8": 7,  # Naming conventions
-}
-
-# Maximum line length for style checking
-PYTHON_MAX_LINE_LENGTH = int(os.getenv("PYTHON_MAX_LINE_LENGTH", "100"))
-TYPESCRIPT_MAX_LINE_LENGTH = int(os.getenv("TYPESCRIPT_MAX_LINE_LENGTH", "120"))
+# Note: Style checking configuration removed - the simplified agent uses
+# LLM reasoning instead of structured style checking tools

@@ -62,10 +62,20 @@ def get_related_file(file_path: str, tool_context: ToolContext) -> dict[str, Any
         # Search for exact match
         for file in related_files:
             if isinstance(file, dict) and file.get("path") == file_path:
+                content = file.get("content", "")
+                # If content is empty (on-demand loading), indicate it needs to be loaded
+                if not content:
+                    return {
+                        "status": "needs_loading",
+                        "message": f"File {file_path} path found but content not loaded. Use repository access to load content.",
+                        "file": file,
+                        "content": "",
+                        "relationship": file.get("relationship", ""),
+                    }
                 return {
                     "status": "success",
                     "file": file,
-                    "content": file.get("content", ""),
+                    "content": content,
                     "relationship": file.get("relationship", ""),
                 }
 

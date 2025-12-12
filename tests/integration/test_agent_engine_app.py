@@ -74,7 +74,7 @@ def test_agent_app_has_root_agent(agent_app: AgentEngineApp) -> None:
     # AgentEngineApp stores the root agent directly in _tmpl_attrs
     assert agent_app._tmpl_attrs.get("agent") is not None
     assert agent_app._tmpl_attrs.get("agent").name is not None
-    assert "CodeReviewOrchestrator" in agent_app._tmpl_attrs.get("agent").name
+    assert agent_app._tmpl_attrs.get("agent").name == "CodeReviewer"
 
 
 @pytest.mark.asyncio

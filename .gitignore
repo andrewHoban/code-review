@@ -197,3 +197,14 @@ my_env.tfvars
 
 # A2A Inspector
 tools/a2a-inspector/
+
+# GitHub App private keys
+*.pem
+*private-key*
+
+# Temporary and backup files
+*.backup
+*.bak
+*_local.py
+build.sh
+test_agent_local.py

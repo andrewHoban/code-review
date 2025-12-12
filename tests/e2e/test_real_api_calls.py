@@ -29,7 +29,6 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from app.agent import root_agent
-from app.agents.python_review_pipeline import python_review_pipeline
 from app.models.input_schema import (
     ChangedFile,
     CodeReviewInput,
@@ -95,11 +94,11 @@ def minimal_python_pr_input(sample_python_code: str) -> CodeReviewInput:
 @pytest.mark.asyncio
 @pytest.mark.e2e
 @pytest.mark.slow
-async def test_python_pipeline_e2e_structure_analysis(
+async def test_root_agent_e2e_review(
     minimal_python_pr_input: CodeReviewInput,
 ) -> None:
     """
-    E2E test: Python pipeline performs structure analysis with real API calls.
+    E2E test: Root agent performs code review with real API calls.
 
     This test makes real API calls to Gemini models and should only be run:
     - Manually when needed
@@ -108,9 +107,7 @@ async def test_python_pipeline_e2e_structure_analysis(
     """
     session_service = InMemorySessionService()
     session = session_service.create_session_sync(user_id="test_user", app_name="test")
-    runner = Runner(
-        agent=python_review_pipeline, session_service=session_service, app_name="test"
-    )
+    runner = Runner(agent=root_agent, session_service=session_service, app_name="test")
 
     # Convert input to message
     input_json = minimal_python_pr_input.model_dump_json()
@@ -127,35 +124,43 @@ async def test_python_pipeline_e2e_structure_analysis(
     )
 
     # Verify we got responses
-    assert len(events) > 0, "Expected at least one event from pipeline"
+    assert len(events) > 0, "Expected at least one event from agent"
 
-    # Check that structure analysis was performed
+    # Check that review was performed
     final_session = await session_service.get_session(
         user_id="test_user", session_id=session.id, app_name="test"
     )
     final_state = final_session.state
 
     # Verify specific expected state key exists and has meaningful content
-    assert "python_structure_analysis_summary" in final_state
-    analysis = final_state["python_structure_analysis_summary"]
-    assert isinstance(analysis, str)
+    assert "code_review_output" in final_state
+    review_output = final_state["code_review_output"]
+    assert isinstance(review_output, str)
     assert (
-        len(analysis) > 50
-    ), "Analysis should contain meaningful content, not just empty string"
-    # Verify it mentions something about the code structure
-    analysis_lower = analysis.lower()
+        len(review_output) > 50
+    ), "Review should contain meaningful content, not just empty string"
+    # Verify it mentions something about the code
+    review_lower = review_output.lower()
     assert any(
-        keyword in analysis_lower
-        for keyword in ["function", "class", "calculator", "add", "multiply"]
-    ), "Analysis should mention code elements from the input"
+        keyword in review_lower
+        for keyword in [
+            "function",
+            "class",
+            "calculator",
+            "add",
+            "multiply",
+            "summary",
+            "lgtm",
+        ]
+    ), "Review should mention code elements or provide summary"
 
 
 @pytest.mark.asyncio
 @pytest.mark.e2e
 @pytest.mark.slow
-async def test_python_pipeline_e2e_with_fixture() -> None:
+async def test_root_agent_e2e_with_fixture() -> None:
     """
-    E2E test: Python pipeline with real payload from fixtures.
+    E2E test: Root agent with real payload from fixtures.
 
     This test makes real API calls and should only be run manually or in CI.
     """
@@ -171,9 +176,7 @@ async def test_python_pipeline_e2e_with_fixture() -> None:
 
     session_service = InMemorySessionService()
     session = session_service.create_session_sync(user_id="test_user", app_name="test")
-    runner = Runner(
-        agent=python_review_pipeline, session_service=session_service, app_name="test"
-    )
+    runner = Runner(agent=root_agent, session_service=session_service, app_name="test")
 
     input_json = input_data.model_dump_json()
     message = types.Content(role="user", parts=[types.Part.from_text(text=input_json)])
@@ -187,20 +190,20 @@ async def test_python_pipeline_e2e_with_fixture() -> None:
         )
     )
 
-    # Verify pipeline completed
-    assert len(events) > 0, "Expected at least one event from pipeline"
+    # Verify agent completed
+    assert len(events) > 0, "Expected at least one event from agent"
 
-    # Check final state has analysis results
+    # Check final state has review results
     final_session = await session_service.get_session(
         user_id="test_user", session_id=session.id, app_name="test"
     )
     final_state = final_session.state
 
-    # Should have structure analysis with valid content
-    assert "python_structure_analysis_summary" in final_state
-    analysis = final_state["python_structure_analysis_summary"]
-    assert isinstance(analysis, str)
-    assert len(analysis) > 50, "Analysis should contain meaningful content"
+    # Should have review output with valid content
+    assert "code_review_output" in final_state
+    review_output = final_state["code_review_output"]
+    assert isinstance(review_output, str)
+    assert len(review_output) > 50, "Review should contain meaningful content"
 
 
 @pytest.mark.asyncio

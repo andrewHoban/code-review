@@ -81,9 +81,9 @@ class ChangedFile(BaseModel):
         ..., max_length=MAX_FILE_CONTENT_SIZE, description="Unified diff patch"
     )
     full_content: str = Field(
-        ...,
+        default="",
         max_length=MAX_FILE_CONTENT_SIZE,
-        description="Complete file content after changes",
+        description="Complete file content after changes (optional - only include for new files or when diff is insufficient)",
     )
     lines_changed: list[int] = Field(
         default_factory=list, description="Line numbers that were changed"
