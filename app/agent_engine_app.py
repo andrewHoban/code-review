@@ -18,7 +18,6 @@ import os
 from typing import Any
 
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
-from google.adk.context import ContextCacheConfig
 from google.cloud import logging as google_cloud_logging
 from vertexai.agent_engines.templates.adk import AdkApp
 
@@ -41,18 +40,6 @@ class AgentEngineApp(AdkApp):
         # Set location if provided
         if gemini_location:
             os.environ["GOOGLE_CLOUD_LOCATION"] = gemini_location
-
-        # Configure context caching for token optimization
-        # Cache static content (instructions, principles) for 1 hour
-        # This reduces token usage by 50-75% for repeated reviews
-        self.context_cache_config = ContextCacheConfig(
-            ttl_seconds=3600,  # 1 hour cache lifetime
-            min_tokens=32768,  # Only cache contexts > 32K tokens
-            refresh_on_use=True,  # Extend cache TTL when accessed
-        )
-        self.logger.info(
-            "Context caching enabled: min_tokens=32768, ttl=3600s, refresh_on_use=True"
-        )
 
         # Call parent set_up to initialize session service and runner
         # This is required for the agent engine to handle sessions properly
