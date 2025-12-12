@@ -13,30 +13,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import os
+from typing import Any
 
 import google.auth
 from google.adk.agents import Agent
 from google.adk.apps.app import App
 
-from app.agents.python_review_pipeline import python_review_pipeline
-from app.agents.typescript_review_pipeline import typescript_review_pipeline
-from app.config import LANGUAGE_DETECTOR_MODEL
-from app.tools.language_detection import detect_languages_tool
-from app.tools.repo_context import (
-    RepoContextStateKeys,
-    get_related_file_tool,
-    search_imports_tool,
-)
-from app.utils.input_preparation import (
-    parse_review_input,
-    prepare_changed_files_for_detection,
-    store_review_context_in_state,
-)
+from app.config import LANGUAGE_DETECTOR_MODEL, LANGUAGE_DETECTOR_FALLBACK_MODEL
+from app.prompts.static_context import STATIC_REVIEW_CONTEXT
 
 logger = logging.getLogger(__name__)
+
+
+# Note: Model fallback is configured in app/config.py
+# Primary: gemini-2.5-pro
+# Fallback: publishers/google/models/llama-4 (free, good quality)
+#
+# Agent-level fallback requires Plugin support which isn't easily available in AgentEngineApp.
+# The fallback model will be used automatically when the primary model hits token/quota limits
+# via the retry mechanism in scripts/call_agent.py or by Vertex AI's built-in retry logic.
+
 
 _, project_id = google.auth.default()
 os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
@@ -44,38 +42,60 @@ os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
 
-# Root orchestrator agent that detects languages and routes to pipelines
-# TODO: Consider adding support for additional languages in the future
+# Single agent that reviews code directly using LLM reasoning
+# Fallback to Llama 4 is configured in app/config.py and handled by retry logic
 root_agent = Agent(
-    name="CodeReviewOrchestrator",
-    model=LANGUAGE_DETECTOR_MODEL,
-    description="Orchestrates code review by detecting languages and routing to appropriate pipelines",
-    instruction="""Code review orchestrator for GitHub PRs.
+    name="CodeReviewer",
+    model=LANGUAGE_DETECTOR_MODEL,  # gemini-2.5-pro (falls back to publishers/google/models/llama-4 on token/quota errors)
+    description="Expert code reviewer for GitHub PRs using comprehensive review principles",
+    instruction=f"""{STATIC_REVIEW_CONTEXT}
 
-Workflow:
-1. Extract changed_files from user message (JSON with 'path' field)
-2. Call detect_languages tool with changed_files list
-3. Delegate to PythonReviewPipeline (if Python files) or TypeScriptReviewPipeline (if TS files)
-4. After delegation, access pipeline results from state:
-   - python_final_feedback (if Python files reviewed)
-   - typescript_final_feedback (if TypeScript files reviewed)
-5. Combine results into unified output
+You are an expert code reviewer analyzing GitHub pull requests.
 
-Rules:
-- Use detect_languages tool (don't detect manually)
-- Delegate to pipelines (don't review directly)
-- No Python code execution
-- Extract from message directly (don't parse JSON manually)
-- After pipelines complete, read their output from state and combine it
+INPUT FORMAT:
+You'll receive JSON with:
+- pr_metadata: PR title, description, author
+- review_context.changed_files: Files with diffs, full_content, language
+- review_context.related_files: Context from related files
+- review_context.test_files: Test coverage
 
-Output format:
-- Access pipeline results from state (python_final_feedback, typescript_final_feedback)
-- Combine into unified review with: Summary, Correctness & Security, Design & Maintainability, Test Coverage
-- Use "LGTM" for sections with no issues
-- Overall status: APPROVED/NEEDS_CHANGES/COMMENT
-- Be brief and direct""",
-    tools=[detect_languages_tool, get_related_file_tool, search_imports_tool],
-    sub_agents=[python_review_pipeline, typescript_review_pipeline],
+YOUR TASK:
+1. Read all changed files and their full content
+2. Apply the review principles above to the code
+3. Check for: Correctness, Security, Performance, Design, Test quality
+4. Produce a structured markdown review following the format below
+
+OUTPUT FORMAT (markdown):
+
+## Summary
+One sentence overall assessment. Use "LGTM - no significant issues." if code is clean.
+
+## Correctness & Security
+List only HIGH severity issues (expect 0-2 per review).
+Format: **Issue Title** - File:line - Description - How to fix
+If none found: "LGTM"
+
+## Design & Maintainability
+List only MEDIUM severity issues, top 5 by impact.
+Format: **Issue Title** - File:line - Description
+If none found: "LGTM"
+
+## Test Coverage
+Note critical gaps only (auth, payment, data loss scenarios).
+If adequate: "LGTM"
+
+## Issues to Address
+Numbered list combining HIGH and top MEDIUM issues only.
+Skip this section entirely if no issues.
+
+CRITICAL REMINDERS:
+- 60-80% of PRs should mostly pass - be constructive, not harsh
+- Be specific with file:line references and show code snippets for HIGH issues
+- Use "LGTM" liberally when sections are clean
+- No praise, no "what went well" sections, no congratulations
+- Focus exclusively on issues that need addressing
+- If everything is acceptable, keep it brief with "LGTM"
+""",
     output_key="code_review_output",
 )
 

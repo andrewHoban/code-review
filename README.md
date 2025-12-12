@@ -27,8 +27,6 @@ make deploy              # Deploy agent
 make deploy-webhook      # Deploy webhook (requires GITHUB_APP_ID env var)
 ```
 
-📚 **[Complete Deployment Guide →](DEPLOYMENT_SUMMARY.md)**
-
 ## Features
 
 - **Multi-Language Support**: Python and TypeScript with extensible architecture
@@ -240,11 +238,9 @@ make logs-webhook        # View webhook logs
 make test               # Run all tests
 ```
 
-### Complete Deployment Documentation
-- **[DEPLOYMENT_SUMMARY.md](DEPLOYMENT_SUMMARY.md)** - Start here! Quick overview and daily commands
-- **[DEPLOYMENT_QUICK_REFERENCE.md](DEPLOYMENT_QUICK_REFERENCE.md)** - Command reference for common tasks
-- **[WEBHOOK_DEPLOYMENT.md](WEBHOOK_DEPLOYMENT.md)** - Complete deployment guide with troubleshooting
-- **[ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)** - Visual architecture and data flow diagrams
+### Deployment Resources
+
+For deployment details, see the deployment workflows in `.github/workflows/` and the `Makefile` for common commands.
 
 ## Adding to Your Deployment Pipeline
 
@@ -467,15 +463,8 @@ See the [Integration Guide](docs/integration_guide.md) for detailed API document
 - [Integration Guide](docs/integration_guide.md) - GitHub Actions integration
 
 ### Deployment Documentation
-- [Deployment Info](DEPLOYMENT_INFO.md) - Agent Engine deployment details and access
-- [Webhook Deployment Guide](WEBHOOK_DEPLOYMENT.md) - Complete guide for deploying the webhook service
-- [Deployment Quick Reference](DEPLOYMENT_QUICK_REFERENCE.md) - Quick commands for common deployment tasks
-- [GitHub App Plan](GITHUB_APP_PLAN.md) - Execution plan for GitHub App implementation
 
-### Project Status
-- [Implementation Status](IMPLEMENTATION_STATUS.md) - Current implementation status
-- [Test Results](TEST_RESULTS.md) - Latest test execution results
-- [Next Steps](NEXT_STEPS.md) - Future enhancements and improvements
+See the deployment workflows in `.github/workflows/` for automated deployment configuration.
 
 ## License
 

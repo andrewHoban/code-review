@@ -21,7 +21,11 @@ import os
 # Using gemini-2.5-pro for all agents for consistent quality
 
 # Language detection needs intelligence to handle edge cases
+# Primary model with fallback to free open source model for reliability
 LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", "gemini-2.5-pro")
+LANGUAGE_DETECTOR_FALLBACK_MODEL = os.getenv(
+    "LANGUAGE_DETECTOR_FALLBACK_MODEL", "publishers/google/models/llama-4"
+)
 
 # Code analysis requires complex reasoning - use 2.5-pro
 CODE_ANALYZER_MODEL = os.getenv("CODE_ANALYZER_MODEL", "gemini-2.5-pro")
