@@ -56,15 +56,24 @@ Workflow:
 1. Extract changed_files from user message (JSON with 'path' field)
 2. Call detect_languages tool with changed_files list
 3. Delegate to PythonReviewPipeline (if Python files) or TypeScriptReviewPipeline (if TS files)
-4. Combine pipeline results into unified output
+4. After delegation, access pipeline results from state:
+   - python_final_feedback (if Python files reviewed)
+   - typescript_final_feedback (if TypeScript files reviewed)
+5. Combine results into unified output
 
 Rules:
 - Use detect_languages tool (don't detect manually)
 - Delegate to pipelines (don't review directly)
 - No Python code execution
 - Extract from message directly (don't parse JSON manually)
+- After pipelines complete, read their output from state and combine it
 
-Output: Combine pipeline results. Use "LGTM" if no issues. Status: APPROVED/NEEDS_CHANGES/COMMENT. Be brief.""",
+Output format:
+- Access pipeline results from state (python_final_feedback, typescript_final_feedback)
+- Combine into unified review with: Summary, Correctness & Security, Design & Maintainability, Test Coverage
+- Use "LGTM" for sections with no issues
+- Overall status: APPROVED/NEEDS_CHANGES/COMMENT
+- Be brief and direct""",
     tools=[detect_languages_tool, get_related_file_tool, search_imports_tool],
     sub_agents=[python_review_pipeline, typescript_review_pipeline],
     output_key="code_review_output",

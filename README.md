@@ -6,6 +6,29 @@ A demo multi-language code review agent for GitHub PRs, built with Google's Agen
 
 This agent analyzes pull requests and provides structured feedback for Python and TypeScript code. It uses a multi-agent pipeline architecture with specialized agents for code analysis, style checking, test analysis, and feedback synthesis.
 
+## 🚀 Quick Start: Deployment
+
+Your bot has **two services** that deploy independently:
+
+| Service | Deploy Command | When to Update |
+|---------|---------------|----------------|
+| 🤖 **Agent Engine** (AI Logic) | `make deploy` | Changed review logic in `app/` |
+| 🪝 **Webhook Service** (GitHub) | `make deploy-webhook` | Changed integration in `webhook_service/` |
+
+**Automated deployment**: Just push to `main` and it auto-deploys! 🎉
+
+```bash
+git push origin main  # Auto-deploys based on what changed
+```
+
+**Manual deployment**: For hotfixes or testing
+```bash
+make deploy              # Deploy agent
+make deploy-webhook      # Deploy webhook (requires GITHUB_APP_ID env var)
+```
+
+📚 **[Complete Deployment Guide →](DEPLOYMENT_SUMMARY.md)**
+
 ## Features
 
 - **Multi-Language Support**: Python and TypeScript with extensible architecture
@@ -182,48 +205,46 @@ pytest --cov=app --cov-report=html -m "not e2e"
 
 ## Deployment
 
-### Automated Deployment
+The code review bot has **two independent services** that deploy separately:
 
-Pushes to the `main` branch automatically deploy to Agent Engine via GitHub Actions.
-
-**Prerequisites:**
-- GCP Workload Identity Federation configured
-- GitHub repository secrets set (GCP_PROJECT_ID, GCP_PROJECT_NUMBER, GCP_REGION)
-
-**Deployment Process:**
-1. Create feature branch: `git checkout -b feature/my-feature`
-2. Make changes and commit
-3. Push and create PR: `git push -u origin feature/my-feature`
-4. Wait for CI tests to pass
-5. Merge PR to `main`
-6. GitHub Actions automatically deploys to Agent Engine
-
-### Manual Deployment
-
-For testing or one-off deployments:
+### 1. Agent Engine (AI Review Logic)
+Deployed to Vertex AI Agent Engine. Update when changing review logic or prompts.
 
 ```bash
-# Validate before deploying
-make test-deploy
+# Automated: Push to main branch
+git push origin main  # Auto-deploys if app/ changed
 
-# Deploy to Agent Engine
-make deploy
+# Manual deployment
+make test       # Run tests first
+make deploy     # Deploy to Agent Engine
 ```
 
-### Pre-Deployment Validation
+### 2. Webhook Service (GitHub Integration)
+Deployed to Cloud Run. Update when changing GitHub integration or webhook handling.
 
-Before pushing code, git hooks automatically run:
-- Unit tests (tests/unit)
-- Integration tests (tests/integration)
-- Pre-deployment checks (make test-deploy)
-
-**To run manually:**
 ```bash
-pytest tests/unit tests/integration -v
-make test-deploy
+# Automated: Push to main branch
+git push origin main  # Auto-deploys if webhook_service/ changed
+
+# Manual deployment
+export GITHUB_APP_ID="your-app-id"
+make deploy-webhook  # Deploy to Cloud Run
 ```
 
-See [.cursor/rules/deployment.mdc](.cursor/rules/deployment.mdc) for complete deployment guidelines.
+### Quick Commands
+```bash
+make deploy              # Deploy Agent Engine
+make deploy-webhook      # Deploy Webhook Service
+make status-webhook      # Check webhook status
+make logs-webhook        # View webhook logs
+make test               # Run all tests
+```
+
+### Complete Deployment Documentation
+- **[DEPLOYMENT_SUMMARY.md](DEPLOYMENT_SUMMARY.md)** - Start here! Quick overview and daily commands
+- **[DEPLOYMENT_QUICK_REFERENCE.md](DEPLOYMENT_QUICK_REFERENCE.md)** - Command reference for common tasks
+- **[WEBHOOK_DEPLOYMENT.md](WEBHOOK_DEPLOYMENT.md)** - Complete deployment guide with troubleshooting
+- **[ARCHITECTURE_DIAGRAM.md](ARCHITECTURE_DIAGRAM.md)** - Visual architecture and data flow diagrams
 
 ## Adding to Your Deployment Pipeline
 
@@ -441,10 +462,18 @@ See the [Integration Guide](docs/integration_guide.md) for detailed API document
 
 ## Documentation
 
+### User Documentation
 - [Testing Guidelines](docs/testing-guidelines.md) - Comprehensive testing strategy
 - [Integration Guide](docs/integration_guide.md) - GitHub Actions integration
+
+### Deployment Documentation
+- [Deployment Info](DEPLOYMENT_INFO.md) - Agent Engine deployment details and access
+- [Webhook Deployment Guide](WEBHOOK_DEPLOYMENT.md) - Complete guide for deploying the webhook service
+- [Deployment Quick Reference](DEPLOYMENT_QUICK_REFERENCE.md) - Quick commands for common deployment tasks
+- [GitHub App Plan](GITHUB_APP_PLAN.md) - Execution plan for GitHub App implementation
+
+### Project Status
 - [Implementation Status](IMPLEMENTATION_STATUS.md) - Current implementation status
-- [Deployment Info](DEPLOYMENT_INFO.md) - Deployment details and access
 - [Test Results](TEST_RESULTS.md) - Latest test execution results
 - [Next Steps](NEXT_STEPS.md) - Future enhancements and improvements
 
