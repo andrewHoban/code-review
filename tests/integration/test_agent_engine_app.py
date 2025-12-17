@@ -72,9 +72,10 @@ def test_agent_feedback_missing_fields(agent_app: AgentEngineApp) -> None:
 def test_agent_app_has_root_agent(agent_app: AgentEngineApp) -> None:
     """Test that AgentEngineApp has a root agent configured."""
     # AgentEngineApp stores the root agent directly in _tmpl_attrs
+    # root_agent is now a ModelFallbackAgent wrapper
     assert agent_app._tmpl_attrs.get("agent") is not None
     assert agent_app._tmpl_attrs.get("agent").name is not None
-    assert agent_app._tmpl_attrs.get("agent").name == "CodeReviewer"
+    assert agent_app._tmpl_attrs.get("agent").name == "CodeReviewerWithFallback"
 
 
 @pytest.mark.asyncio
