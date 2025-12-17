@@ -22,6 +22,7 @@ from google.adk.agents import Agent
 from google.adk.apps.app import App
 
 from app.config import LANGUAGE_DETECTOR_MODEL, LANGUAGE_DETECTOR_FALLBACK_MODEL
+from app.models.output_schema import SimpleReviewOutput
 from app.prompts.static_context import STATIC_REVIEW_CONTEXT
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ root_agent = Agent(
     name="CodeReviewer",
     model=LANGUAGE_DETECTOR_MODEL,  # gemini-2.5-pro (falls back to publishers/google/models/llama-4 on token/quota errors)
     description="Expert code reviewer for GitHub PRs using comprehensive review principles",
+    output_schema=SimpleReviewOutput,  # Enforces JSON with single markdown_review field
     instruction=f"""{STATIC_REVIEW_CONTEXT}
 
 You are an expert code reviewer analyzing GitHub pull requests.
@@ -63,9 +65,12 @@ YOUR TASK:
 1. Read all changed files and their full content
 2. Apply the review principles above to the code
 3. Check for: Correctness, Security, Performance, Design, Test quality
-4. Produce a structured markdown review following the format below
+4. Produce a complete markdown review in the markdown_review field
 
-OUTPUT FORMAT (markdown):
+OUTPUT FORMAT:
+Your response must be a JSON object with a single field "markdown_review" containing your complete review in markdown format.
+
+Example structure for the markdown content:
 
 ## Summary
 One sentence overall assessment. Use "LGTM - no significant issues." if code is clean.
@@ -95,6 +100,7 @@ CRITICAL REMINDERS:
 - No praise, no "what went well" sections, no congratulations
 - Focus exclusively on issues that need addressing
 - If everything is acceptable, keep it brief with "LGTM"
+- Output ONLY valid JSON with the markdown_review field containing your complete review
 """,
     output_key="code_review_output",
 )

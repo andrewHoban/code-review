@@ -15,7 +15,6 @@
 """Post review comments to GitHub PR."""
 
 import logging
-import time
 from typing import Any
 
 from github_client import GitHubClient
@@ -40,87 +39,30 @@ class CommentPoster:
         repo_full_name: str,
         pr_number: int,
         review_response: dict[str, Any],
-    ):
-        """Post review comments to GitHub PR.
+    ) -> None:
+        """Post review as a single PR comment.
 
         Args:
             installation_id: GitHub App installation ID
             repo_full_name: Repository full name (owner/repo)
             pr_number: Pull request number
-            review_response: Review response from Agent Engine
+            review_response: Review response from Agent Engine (must contain markdown_review field)
         """
         try:
             client = self.github_client.get_installation_client(installation_id)
             repo = client.get_repo(repo_full_name)
             pr = repo.get_pull(pr_number)
 
-            # Post summary comment
-            summary = review_response.get("summary", "")
-            if summary:
-                # Enhance summary with metrics
-                metrics = review_response.get("metrics", {})
-                if metrics:
-                    issues_found = metrics.get("issues_found", 0)
-                    critical_issues = metrics.get("critical_issues", 0)
-                    files_reviewed = metrics.get("files_reviewed", 0)
+            # Get markdown review text
+            markdown_review = review_response.get("markdown_review", "")
 
-                    metrics_text = "\n\n**Review Metrics:**\n"
-                    metrics_text += f"- Files reviewed: {files_reviewed}\n"
-                    metrics_text += f"- Total issues: {issues_found}\n"
-                    metrics_text += f"- Critical issues: {critical_issues}\n"
+            if not markdown_review:
+                raise ValueError("No markdown_review in response")
 
-                    if "style_score" in metrics:
-                        metrics_text += (
-                            f"- Style score: {metrics['style_score']:.1f}/100\n"
-                        )
-
-                    summary = summary + metrics_text
-
-                pr.create_issue_comment(summary)
-                logger.info("Posted summary comment")
-
-            # Post inline comments
-            inline_comments = review_response.get("inline_comments", [])
-            if inline_comments:
-                # Get latest commit SHA
-                commits = pr.get_commits()
-                commit_sha = None
-                try:
-                    commit_sha = commits.reversed[0].sha
-                except (IndexError, AttributeError):
-                    commit_sha = pr.head.sha
-
-                total_posted = 0
-                for comment in inline_comments:
-                    try:
-                        file_path = comment.get("path")
-                        line = comment.get("line")
-                        body = comment.get("body", "")
-                        side = comment.get("side", "RIGHT")
-
-                        if not file_path or not line:
-                            continue
-
-                        pr.create_review_comment(
-                            body=body,
-                            commit_id=commit_sha,
-                            path=file_path,
-                            line=line,
-                            side=side,
-                        )
-
-                        total_posted += 1
-                        # Rate limiting
-                        time.sleep(0.1)
-
-                    except Exception as e:
-                        logger.warning(
-                            f"Could not post comment on {comment.get('path')}:{comment.get('line')}: {e}"
-                        )
-                        continue
-
-                logger.info(f"Posted {total_posted} inline review comments")
+            # Post as single comment
+            pr.create_issue_comment(markdown_review)
+            logger.info("Posted review comment")
 
         except Exception as e:
-            logger.error(f"Error posting review comments: {e}", exc_info=True)
+            logger.error(f"Error posting review: {e}", exc_info=True)
             raise
