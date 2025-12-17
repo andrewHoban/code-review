@@ -147,15 +147,34 @@ class AgentEngineClient:
 
                 # Handle both dict and JSON string
                 if isinstance(output, dict):
-                    return output
+                    result = output
                 elif isinstance(output, str):
                     try:
-                        return json.loads(output)
+                        result = json.loads(output)
                     except json.JSONDecodeError as e:
                         logger.error(
                             f"Failed to parse JSON from code_review_output: {e}"
                         )
                         raise
+                else:
+                    # Unexpected type - this should not happen with structured output
+                    output_type = type(output).__name__
+                    error_msg = (
+                        f"Unexpected type for code_review_output: {output_type} "
+                        f"(expected dict or str). Value: {repr(output)[:200]}"
+                    )
+                    logger.error(error_msg)
+                    raise TypeError(error_msg)
+
+                # Add model_used if present in state (set by ModelFallbackAgent)
+                if "model_used" in all_state_deltas:
+                    result["model_used"] = all_state_deltas["model_used"]
+                    logger.info(f"Model used: {result['model_used']}")
+                else:
+                    # Fallback to primary model if not tracked (backward compatibility)
+                    result["model_used"] = "gemini-2.5-pro"
+
+                return result
 
             # Fallback: try text content and parse as JSON
             combined_text = "\n".join(all_text_parts).strip()

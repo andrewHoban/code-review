@@ -212,6 +212,7 @@ def main() -> None:
         inline_comments = response.get("inline_comments", [])
         overall_status = response.get("overall_status", "COMMENT")
         metrics = response.get("metrics", {})
+        model_used = response.get("model_used", None)
 
         # Enhance summary with metrics
         if metrics:
@@ -228,6 +229,14 @@ def main() -> None:
                 metrics_text += f"- Style score: {metrics['style_score']:.1f}/100\n"
 
             summary = summary + metrics_text
+
+        # Add model information footer
+        footer_text = "\n\n---\n*Automated code review by AI agent*"
+        if model_used:
+            # Format model name for display (remove hyphens, capitalize)
+            model_display = model_used.replace("-", " ").replace("_", " ").title()
+            footer_text += f" *(Model: {model_display})*"
+        summary = summary + footer_text
 
         if args.create_review:
             # Create a single review with all comments
