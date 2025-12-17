@@ -8,24 +8,24 @@ This agent analyzes pull requests and provides structured feedback for Python an
 
 ## 🚀 Quick Start: Deployment
 
-Your bot has **two services** that deploy independently:
+Your bot has **one service** that deploys:
 
 | Service | Deploy Command | When to Update |
 |---------|---------------|----------------|
 | 🤖 **Agent Engine** (AI Logic) | `make deploy` | Changed review logic in `app/` |
-| 🪝 **Webhook Service** (GitHub) | `make deploy-webhook` | Changed integration in `webhook_service/` |
 
 **Automated deployment**: Just push to `main` and it auto-deploys! 🎉
 
 ```bash
-git push origin main  # Auto-deploys based on what changed
+git push origin main  # Auto-deploys the agent
 ```
 
 **Manual deployment**: For hotfixes or testing
 ```bash
 make deploy              # Deploy agent
-make deploy-webhook      # Deploy webhook (requires GITHUB_APP_ID env var)
 ```
+
+**Note:** The webhook service is deprecated. Teams now use GitHub Actions workflows (see [Team Adoption Guide](docs/TEAM_ADOPTION_GUIDE.md)).
 
 ## Features
 
@@ -87,9 +87,10 @@ The agent automatically reviews pull requests when they are opened or updated. T
 2. Calls the deployed agent via Agent Engine API
 3. Posts review comments and summary on the PR
 
-**Setup:**
-- The workflow (`.github/workflows/pr-review.yml`) is already configured
-- Requires GitHub Secrets: `GCP_PROJECT_ID`, `GCP_PROJECT_NUMBER`, `GCP_REGION`
+**Setup for Teams:**
+- See [Team Adoption Guide](docs/TEAM_ADOPTION_GUIDE.md) for setup instructions
+- Copy `.github/workflows/STARTER-pr-review.yml` to your repo
+- Requires GitHub Secret: `GCP_PROJECT_NUMBER`
 - Uses Workload Identity Federation for GCP authentication
 
 **Manual Usage:**
@@ -215,24 +216,9 @@ make test       # Run tests first
 make deploy     # Deploy to Agent Engine
 ```
 
-### 2. Webhook Service (GitHub Integration)
-Deployed to Cloud Run. Update when changing GitHub integration or webhook handling.
-
-```bash
-# Automated: Push to main branch
-git push origin main  # Auto-deploys if webhook_service/ changed
-
-# Manual deployment
-export GITHUB_APP_ID="your-app-id"
-make deploy-webhook  # Deploy to Cloud Run
-```
-
 ### Quick Commands
 ```bash
 make deploy              # Deploy Agent Engine
-make deploy-webhook      # Deploy Webhook Service
-make status-webhook      # Check webhook status
-make logs-webhook        # View webhook logs
 make test               # Run all tests
 ```
 

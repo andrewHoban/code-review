@@ -77,86 +77,42 @@ lint:
 	uv run mypy .
 
 # ==============================================================================
-# Webhook Service Deployment
+# Webhook Service Deployment (DEPRECATED)
 # ==============================================================================
+# The webhook service is deprecated. Teams now use GitHub Actions workflows.
+# See docs/TEAM_ADOPTION_GUIDE.md for the current approach.
+# These targets are kept for reference but should not be used.
 
-# Deploy webhook service to Cloud Run
+# Deploy webhook service to Cloud Run (DEPRECATED)
 deploy-webhook:
-	@if [ -z "$$GITHUB_APP_ID" ]; then \
-		echo "❌ ERROR: GITHUB_APP_ID environment variable is not set"; \
-		echo "💡 Set it with: export GITHUB_APP_ID=your-app-id"; \
-		exit 1; \
-	fi
-	@echo "🚀 Deploying webhook service to Cloud Run..."
-	@cd webhook_service && \
-	gcloud builds submit \
-		--tag gcr.io/bpc-askgreg-nonprod/code-review-webhook:latest \
-		--project=bpc-askgreg-nonprod && \
-	gcloud run deploy code-review-webhook \
-		--image gcr.io/bpc-askgreg-nonprod/code-review-webhook:latest \
-		--platform managed \
-		--region europe-west1 \
-		--allow-unauthenticated \
-		--set-env-vars GITHUB_APP_ID=$$GITHUB_APP_ID,GCP_PROJECT_ID=bpc-askgreg-nonprod,GCP_REGION=europe-west1,AGENT_ENGINE_ID=3659508948773371904 \
-		--memory 1Gi \
-		--cpu 1 \
-		--timeout 300 \
-		--max-instances 10 \
-		--min-instances 0 \
-		--project=bpc-askgreg-nonprod
-	@echo "✅ Webhook service deployed successfully!"
+	@echo "⚠️  DEPRECATED: Webhook service is no longer used."
+	@echo "💡 See docs/TEAM_ADOPTION_GUIDE.md for the GitHub Actions approach."
+	@exit 1
 
-# Test webhook service
+# Test webhook service (DEPRECATED)
 test-webhook:
-	@echo "🧪 Running webhook service tests..."
-	@if [ -d "webhook_service/tests" ]; then \
-		cd webhook_service && \
-		pip install -q -r requirements.txt && \
-		pip install -q pytest pytest-mock && \
-		pytest tests/ -v; \
-	else \
-		echo "⚠️  No tests directory found in webhook_service/"; \
-	fi
+	@echo "⚠️  DEPRECATED: Webhook service is no longer used."
+	@exit 1
 
-# Run webhook service locally for development
+# Run webhook service locally (DEPRECATED)
 run-webhook:
-	@if [ -z "$$GITHUB_APP_ID" ] || [ -z "$$GITHUB_WEBHOOK_SECRET" ]; then \
-		echo "❌ ERROR: Required environment variables not set"; \
-		echo "💡 Set them with:"; \
-		echo "   export GITHUB_APP_ID=your-app-id"; \
-		echo "   export GITHUB_WEBHOOK_SECRET=your-webhook-secret"; \
-		exit 1; \
-	fi
-	@echo "🔧 Starting webhook service locally on http://localhost:8080"
-	@echo "💡 Use ngrok to expose: ngrok http 8080"
-	@cd webhook_service && \
-	export GCP_PROJECT_ID=bpc-askgreg-nonprod && \
-	export GCP_REGION=europe-west1 && \
-	export AGENT_ENGINE_ID=3659508948773371904 && \
-	python app.py
+	@echo "⚠️  DEPRECATED: Webhook service is no longer used."
+	@exit 1
 
-# View webhook service logs
+# View webhook service logs (DEPRECATED)
 logs-webhook:
-	@echo "📋 Fetching webhook service logs..."
-	@gcloud run services logs read code-review-webhook \
-		--region=europe-west1 \
-		--project=bpc-askgreg-nonprod \
-		--limit=50
+	@echo "⚠️  DEPRECATED: Webhook service is no longer used."
+	@exit 1
 
-# Stream webhook service logs in real-time
+# Stream webhook service logs (DEPRECATED)
 tail-webhook:
-	@echo "📋 Streaming webhook service logs (Ctrl+C to stop)..."
-	@gcloud run services logs tail code-review-webhook \
-		--region=europe-west1 \
-		--project=bpc-askgreg-nonprod
+	@echo "⚠️  DEPRECATED: Webhook service is no longer used."
+	@exit 1
 
-# Check webhook service status
+# Check webhook service status (DEPRECATED)
 status-webhook:
-	@echo "📊 Webhook Service Status:"
-	@gcloud run services describe code-review-webhook \
-		--region=europe-west1 \
-		--project=bpc-askgreg-nonprod \
-		--format='table(metadata.name, status.url, status.conditions[0].status, status.latestCreatedRevisionName)'
+	@echo "⚠️  DEPRECATED: Webhook service is no longer used."
+	@exit 1
 
 # ==============================================================================
 # Gemini Enterprise Integration

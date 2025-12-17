@@ -1,0 +1,45 @@
+# AI Code Review Workflow
+#
+# This workflow automatically reviews pull requests using AI.
+# It runs on every PR (opened, updated, or reopened) and posts review comments.
+#
+# Setup Instructions:
+# 1. Copy this file to your repo: .github/workflows/pr-review.yml
+# 2. Add repository secret: GCP_PROJECT_NUMBER (get from your GCP admin)
+# 3. That's it! The workflow will run automatically on PRs.
+#
+# Optional: Customize the configuration below if needed.
+
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Skip draft PRs
+    if: github.event.pull_request.draft == false
+
+    steps:
+      # Call the reusable workflow from the code-review repository
+      - name: Run AI Code Review
+        uses: andrewHoban/code-review/.github/workflows/pr-review-reusable.yml@main
+        with:
+          # GCP Project Configuration
+          # Default: bpc-askgreg-nonprod (change if using different project)
+          project_id: "bpc-askgreg-nonprod"
+          location: "europe-west1"
+          agent_engine_id: "3659508948773371904"
+        secrets:
+          # Required: Get this from your GCP admin or platform team
+          # It's the numeric project number (not the project ID)
+          GCP_PROJECT_NUMBER: ${{ secrets.GCP_PROJECT_NUMBER }}
+          # Automatically provided by GitHub Actions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

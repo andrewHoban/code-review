@@ -20,13 +20,12 @@ import os
 # Note: gemini-3-pro-preview is not available in europe-west1
 # Using gemini-2.5-pro for the single-agent architecture
 
-# Primary model with fallback to free open source model for reliability
-# The fallback model will be used automatically when the primary model hits
-# token/quota limits via the retry mechanism in scripts/call_agent.py or by
-# Vertex AI's built-in retry logic.
+# Primary model with fallback for reliability
+# The fallback model will be used automatically when the primary model encounters
+# errors (quota limits, model unavailable, etc.) via the ModelFallbackAgent.
 LANGUAGE_DETECTOR_MODEL = os.getenv("LANGUAGE_DETECTOR_MODEL", "gemini-2.5-pro")
 LANGUAGE_DETECTOR_FALLBACK_MODEL = os.getenv(
-    "LANGUAGE_DETECTOR_FALLBACK_MODEL", "publishers/google/models/llama-4"
+    "LANGUAGE_DETECTOR_FALLBACK_MODEL", "gemini-2.5-flash"
 )
 
 # Review configuration
