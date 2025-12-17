@@ -172,8 +172,9 @@ class ModelFallbackAgent(BaseAgent):
             fallback_agent: The fallback agent to use if primary fails
         """
         super().__init__(name="CodeReviewerWithFallback")
-        self.primary_agent = primary_agent
-        self.fallback_agent = fallback_agent
+        # Use object.__setattr__ to bypass Pydantic's field validation
+        object.__setattr__(self, "primary_agent", primary_agent)
+        object.__setattr__(self, "fallback_agent", fallback_agent)
 
     async def _run_async_impl(
         self, ctx: InvocationContext
