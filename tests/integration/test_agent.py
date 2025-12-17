@@ -15,21 +15,25 @@
 """Integration tests for agent configuration and structure."""
 
 # mypy: disable-error-code="union-attr"
-import pytest
 
 from app.agent import root_agent
 
 
 def test_root_agent_has_correct_structure() -> None:
     """Test that root agent is configured correctly."""
-    assert root_agent.name == "CodeReviewer"
-    assert root_agent.description is not None
-    assert len(root_agent.description) > 0
-    assert root_agent.instruction is not None
-    assert len(root_agent.instruction) > 0
+    # root_agent is now a ModelFallbackAgent wrapper
+    assert root_agent.name == "CodeReviewerWithFallback"
+    # ModelFallbackAgent has primary_agent and fallback_agent attributes
+    assert hasattr(root_agent, "primary_agent")
+    assert hasattr(root_agent, "fallback_agent")
+    # Verify the wrapped agents are properly configured
+    assert root_agent.primary_agent.name == "CodeReviewer"
+    assert root_agent.fallback_agent.name == "CodeReviewer"
 
 
 def test_agent_output_key_is_configured() -> None:
     """Test that root agent has output key configured."""
-    assert root_agent.output_key is not None
-    assert root_agent.output_key == "code_review_output"
+    # Check that wrapped agents have output_key configured
+    assert root_agent.primary_agent.output_key is not None
+    assert root_agent.primary_agent.output_key == "code_review_output"
+    assert root_agent.fallback_agent.output_key == "code_review_output"
