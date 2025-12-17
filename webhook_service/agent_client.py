@@ -16,12 +16,19 @@
 
 import json
 import logging
+import sys
 import threading
 import time
+from pathlib import Path
 
 import vertexai
 from config import Config
 from vertexai import agent_engines
+
+# Add parent directory to path to import app models
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.models.output_schema import SimpleReviewOutput
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +36,7 @@ logger = logging.getLogger(__name__)
 class AgentEngineClient:
     """Client for calling the deployed Agent Engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Agent Engine client."""
         vertexai.init(
             project=Config.GCP_PROJECT_ID,
@@ -66,7 +73,7 @@ class AgentEngineClient:
             streaming_complete = threading.Event()
             stream_error: list[Exception | None] = [None]
 
-            def stream_worker():
+            def stream_worker() -> None:
                 """Worker thread to handle streaming."""
                 try:
                     logger.debug("Starting agent stream query")
@@ -119,19 +126,10 @@ class AgentEngineClient:
 
             logger.info(f"Received {len(response_chunks)} chunks from agent")
 
-            # Extract structured output from chunks
-            structured_output = None
-            all_text_parts = []
+            # Extract output from state_delta
             all_state_deltas = {}
 
             for chunk in response_chunks:
-                # Collect text
-                if hasattr(chunk, "content") and chunk.content:
-                    if hasattr(chunk.content, "parts") and chunk.content.parts:
-                        for part in chunk.content.parts:
-                            if hasattr(part, "text") and part.text:
-                                all_text_parts.append(part.text)
-
                 # Collect structured data
                 if hasattr(chunk, "actions") and chunk.actions:
                     if (
@@ -140,58 +138,23 @@ class AgentEngineClient:
                     ):
                         all_state_deltas.update(chunk.actions.state_delta)
 
-            # Look for structured output
-            if "code_review_output" in all_state_deltas:
-                structured_output = all_state_deltas["code_review_output"]
-            elif "formatted_output" in all_state_deltas:
-                structured_output = all_state_deltas["formatted_output"]
-            else:
-                for key in all_state_deltas:
-                    if (
-                        "output" in key.lower() or "review" in key.lower()
-                    ) and isinstance(all_state_deltas[key], dict | list):
-                        structured_output = all_state_deltas[key]
-                        break
+            # Extract and validate output
+            if "code_review_output" not in all_state_deltas:
+                raise Exception(
+                    "Agent did not produce code_review_output in state_delta"
+                )
 
-            # Use structured output if found
-            if structured_output:
-                if isinstance(structured_output, dict):
-                    if (
-                        "overall_status" in structured_output
-                        or "summary" in structured_output
-                    ):
-                        logger.info("Using structured output from agent state")
-                        return structured_output
-                elif isinstance(structured_output, str):
-                    try:
-                        parsed = json.loads(structured_output)
-                        if isinstance(parsed, dict):
-                            return parsed
-                    except json.JSONDecodeError:
-                        pass
+            output = all_state_deltas["code_review_output"]
 
-            # Fallback to text response
-            combined_text = "\n".join(all_text_parts).strip()
-            if combined_text:
-                logger.info("Using text response from agent")
-                return {
-                    "summary": combined_text,
-                    "inline_comments": [],
-                    "overall_status": "COMMENT",
-                    "metrics": {
-                        "files_reviewed": 0,
-                        "issues_found": 0,
-                        "critical_issues": 0,
-                        "warnings": 0,
-                        "suggestions": 0,
-                        "style_score": 0.0,
-                    },
-                }
-
-            # Last resort
-            raise Exception(
-                f"Failed to extract response from {len(response_chunks)} chunks"
-            )
+            # Validate schema
+            try:
+                validated = SimpleReviewOutput(**output)
+                logger.info("Successfully validated agent output schema")
+                # Return simple structure for CommentPoster
+                return {"markdown_review": validated.markdown_review}
+            except Exception as e:
+                logger.error(f"Schema validation failed: {e}")
+                raise Exception(f"Invalid agent output schema: {e}") from e
 
         except Exception as e:
             logger.error(f"Agent Engine call failed: {e}", exc_info=True)

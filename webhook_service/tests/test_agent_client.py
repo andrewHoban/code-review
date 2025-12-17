@@ -26,7 +26,7 @@ from agent_client import AgentEngineClient
 
 
 @pytest.fixture
-def mock_agent_engine():
+def mock_agent_engine() -> Mock:
     """Mock Agent Engine."""
     mock_agent = Mock()
 
@@ -37,9 +37,7 @@ def mock_agent_engine():
     mock_chunk.actions = Mock()
     mock_chunk.actions.state_delta = {
         "code_review_output": {
-            "summary": "## Review Summary",
-            "inline_comments": [],
-            "overall_status": "COMMENT",
+            "markdown_review": "## Summary\nLGTM - no significant issues.\n\n## Correctness & Security\nLGTM"
         }
     }
 
@@ -48,7 +46,7 @@ def mock_agent_engine():
     return mock_agent
 
 
-def test_review_pr(mock_agent_engine):
+def test_review_pr(mock_agent_engine: Mock) -> None:
     """Test reviewing a PR."""
     with (
         patch("agent_client.vertexai.init"),
@@ -63,16 +61,18 @@ def test_review_pr(mock_agent_engine):
 
         response = client.review_pr(review_context)
 
-        assert "summary" in response or "overall_status" in response
+        assert "markdown_review" in response
+        assert isinstance(response["markdown_review"], str)
+        assert len(response["markdown_review"]) > 0
         assert mock_agent_engine.stream_query.called
 
 
-def test_review_pr_timeout(mock_agent_engine):
+def test_review_pr_timeout(mock_agent_engine: Mock) -> None:
     """Test PR review timeout handling."""
     # Mock stream that never completes
     import time
 
-    def slow_stream():
+    def slow_stream() -> Mock:
         time.sleep(10)  # Simulate slow response
         yield Mock()
 

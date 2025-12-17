@@ -27,7 +27,7 @@ from github_client import GitHubClient
 
 
 @pytest.fixture
-def mock_github_client():
+def mock_github_client() -> Mock:
     """Create mock GitHub client."""
     client = Mock(spec=GitHubClient)
 
@@ -46,26 +46,12 @@ def mock_github_client():
     return client
 
 
-def test_post_review(mock_github_client):
-    """Test posting review comments."""
+def test_post_review(mock_github_client: Mock) -> None:
+    """Test posting review comment."""
     poster = CommentPoster(mock_github_client)
 
     review_response = {
-        "summary": "## Review Summary\n\nLooks good!",
-        "inline_comments": [
-            {
-                "path": "test.py",
-                "line": 10,
-                "body": "Good improvement!",
-                "severity": "info",
-                "side": "RIGHT",
-            }
-        ],
-        "metrics": {
-            "files_reviewed": 1,
-            "issues_found": 1,
-            "critical_issues": 0,
-        },
+        "markdown_review": "## Summary\nLGTM - no significant issues.\n\n## Correctness & Security\nLGTM",
     }
 
     poster.post_review(
@@ -82,29 +68,24 @@ def test_post_review(mock_github_client):
 
     # Verify comment was posted
     assert mock_pr.create_issue_comment.called
-    assert mock_pr.create_review_comment.called
+    # Verify the correct markdown was posted
+    call_args = mock_pr.create_issue_comment.call_args[0][0]
+    assert "## Summary" in call_args
+    assert "LGTM" in call_args
 
 
-def test_post_review_no_comments(mock_github_client):
-    """Test posting review with no inline comments."""
+def test_post_review_empty_markdown(mock_github_client: Mock) -> None:
+    """Test posting review with empty markdown raises error."""
     poster = CommentPoster(mock_github_client)
 
     review_response = {
-        "summary": "## Review Summary\n\nNo issues!",
-        "inline_comments": [],
-        "metrics": {},
+        "markdown_review": "",
     }
 
-    poster.post_review(
-        installation_id=12345,
-        repo_full_name="owner/repo",
-        pr_number=1,
-        review_response=review_response,
-    )
-
-    # Should still post summary
-    mock_github = mock_github_client.get_installation_client.return_value
-    mock_repo = mock_github.get_repo.return_value
-    mock_pr = mock_repo.get_pull.return_value
-
-    assert mock_pr.create_issue_comment.called
+    with pytest.raises(ValueError, match="No markdown_review"):
+        poster.post_review(
+            installation_id=12345,
+            repo_full_name="owner/repo",
+            pr_number=1,
+            review_response=review_response,
+        )

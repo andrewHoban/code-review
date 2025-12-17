@@ -28,6 +28,7 @@ from app.models.output_schema import (
     CodeReviewOutput,
     InlineComment,
     ReviewMetrics,
+    SimpleReviewOutput,
 )
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     "RepositoryInfo",
     "ReviewContext",
     "ReviewMetrics",
+    "SimpleReviewOutput",
     "TestFile",
 ]

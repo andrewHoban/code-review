@@ -14,9 +14,18 @@
 
 """Output schema models for code review agent."""
 
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+class SimpleReviewOutput(BaseModel):
+    """Minimal output schema - single markdown field."""
+
+    markdown_review: str = Field(
+        ...,
+        description="Complete code review in markdown format. Include all sections, findings, and recommendations in this single field.",
+    )
 
 
 class InlineComment(BaseModel):
@@ -49,10 +58,8 @@ class ReviewMetrics(BaseModel):
 class CodeReviewOutput(BaseModel):
     """Complete output from code review agent."""
 
-    summary: str = Field(
-        ..., description="Overall review summary in markdown format"
-    )
-    inline_comments: List[InlineComment] = Field(
+    summary: str = Field(..., description="Overall review summary in markdown format")
+    inline_comments: list[InlineComment] = Field(
         default_factory=list, description="Comments for specific lines"
     )
     overall_status: Literal["APPROVED", "NEEDS_CHANGES", "COMMENT"] = Field(

@@ -29,7 +29,7 @@ from app import app
 
 
 @pytest.fixture
-def client():
+def client() -> Mock:
     """Create test client."""
     app.config["TESTING"] = True
     with app.test_client() as client:
@@ -37,7 +37,7 @@ def client():
 
 
 @pytest.fixture
-def webhook_secret(monkeypatch):
+def webhook_secret(monkeypatch: pytest.MonkeyPatch) -> str:
     """Set webhook secret for testing."""
     secret = "test-webhook-secret"
     monkeypatch.setenv("GITHUB_WEBHOOK_SECRET", secret)
@@ -58,7 +58,7 @@ def create_signature(payload: str, secret: str) -> str:
 
 
 @pytest.fixture
-def mock_clients(monkeypatch):
+def mock_clients(monkeypatch: pytest.MonkeyPatch) -> dict[str, Mock]:
     """Mock all external clients."""
     # Mock GitHub client
     mock_pr = Mock()
@@ -106,22 +106,7 @@ def mock_clients(monkeypatch):
     # Mock Agent Engine client
     mock_agent = Mock()
     mock_agent.review_pr.return_value = {
-        "summary": "## Review Summary\n\nLooks good!",
-        "inline_comments": [
-            {
-                "path": "test.py",
-                "line": 10,
-                "body": "Good improvement!",
-                "severity": "info",
-                "side": "RIGHT",
-            }
-        ],
-        "overall_status": "COMMENT",
-        "metrics": {
-            "files_reviewed": 1,
-            "issues_found": 1,
-            "critical_issues": 0,
-        },
+        "markdown_review": "## Summary\nLGTM - no significant issues.\n\n## Correctness & Security\nLGTM\n\n## Design & Maintainability\nLGTM",
     }
 
     # Mock comment poster
@@ -142,7 +127,9 @@ def mock_clients(monkeypatch):
         }
 
 
-def test_end_to_end_pr_review(client, webhook_secret, mock_clients):
+def test_end_to_end_pr_review(
+    client: Mock, webhook_secret: str, mock_clients: dict[str, Mock]
+) -> None:
     """Test complete flow from webhook to posted comments."""
     payload = {
         "action": "opened",
@@ -180,7 +167,9 @@ def test_end_to_end_pr_review(client, webhook_secret, mock_clients):
     # The important thing is the webhook was accepted and processed
 
 
-def test_installation_event(client, webhook_secret, mock_clients):
+def test_installation_event(
+    client: Mock, webhook_secret: str, mock_clients: dict[str, Mock]
+) -> None:
     """Test installation event handling."""
     payload = {
         "action": "created",
@@ -207,7 +196,9 @@ def test_installation_event(client, webhook_secret, mock_clients):
     assert response.status_code == 200
 
 
-def test_draft_pr_skipped(client, webhook_secret, mock_clients):
+def test_draft_pr_skipped(
+    client: Mock, webhook_secret: str, mock_clients: dict[str, Mock]
+) -> None:
     """Test that draft PRs are skipped."""
     payload = {
         "action": "opened",

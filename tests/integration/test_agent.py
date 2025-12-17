@@ -15,9 +15,9 @@
 """Integration tests for agent configuration and structure."""
 
 # mypy: disable-error-code="union-attr"
-import pytest
 
 from app.agent import root_agent
+from app.models.output_schema import SimpleReviewOutput
 
 
 def test_root_agent_has_correct_structure() -> None:
@@ -33,3 +33,9 @@ def test_agent_output_key_is_configured() -> None:
     """Test that root agent has output key configured."""
     assert root_agent.output_key is not None
     assert root_agent.output_key == "code_review_output"
+
+
+def test_agent_has_simple_output_schema() -> None:
+    """Test that agent uses SimpleReviewOutput schema."""
+    assert root_agent.output_schema is not None
+    assert root_agent.output_schema == SimpleReviewOutput
