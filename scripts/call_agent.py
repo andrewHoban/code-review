@@ -15,6 +15,8 @@
 
 """Call the deployed code review agent via Agent Engine API."""
 
+# ruff: noqa: B023  # B023 warnings are intentional - we use lists for thread-safe access
+
 import argparse
 import json
 import sys
@@ -72,9 +74,19 @@ def call_agent_with_retry(
                 None
             ]  # Use list to allow modification from nested scope
 
-            def stream_worker() -> None:  # noqa: B023
-                """Worker thread to handle streaming with timeout detection."""
-                nonlocal response_chunks, chunk_count, last_chunk_time, stream_error, agent, message_payload, stream_start_time
+            def stream_worker() -> None:
+                """Worker thread to handle streaming with timeout detection.
+
+                Note: B023 warnings are intentional - we use lists for thread-safe access.
+                """
+                nonlocal \
+                    response_chunks, \
+                    chunk_count, \
+                    last_chunk_time, \
+                    stream_error, \
+                    agent, \
+                    message_payload, \
+                    stream_start_time
                 try:
                     print("  Invoking agent.stream_query()...")
                     stream_iterator = agent.stream_query(
@@ -158,116 +170,72 @@ def call_agent_with_retry(
                 f"\nProcessing {len(response_chunks)} chunks to extract final response..."
             )
 
-            # The agent returns streaming chunks - we need to find the final output
-            # Priority: structured data in state_delta > text response
-            # The pipelines store structured output in state (formatted_output, code_review_output, etc.)
-
-            structured_output = None
+            # Extract structured JSON output from agent state
+            # The agent uses structured output (response_schema) which is stored in state_delta
             all_text_parts = []
-            all_state_deltas = {}  # Accumulate all state deltas
+            all_state_deltas = {}
 
-            for i, chunk in enumerate(response_chunks):
-                # Collect text from content
+            for chunk in response_chunks:
+                # Collect text from content (for debugging)
                 if hasattr(chunk, "content") and chunk.content:
                     if hasattr(chunk.content, "parts") and chunk.content.parts:
                         for part in chunk.content.parts:
                             if hasattr(part, "text") and part.text:
                                 all_text_parts.append(part.text)
 
-                # Collect structured data from state_delta
+                # Collect structured output from state_delta
                 if hasattr(chunk, "actions") and chunk.actions:
                     if (
                         hasattr(chunk.actions, "state_delta")
                         and chunk.actions.state_delta
                     ):
-                        state_delta = chunk.actions.state_delta
-                        # Merge all state deltas (later chunks may override earlier ones)
-                        all_state_deltas.update(state_delta)
+                        all_state_deltas.update(chunk.actions.state_delta)
 
-            # Look for structured output in accumulated state
-            # Check in order of preference:
-            # 1. code_review_output (root agent output key)
-            # 2. formatted_output (from output formatter tool)
-            # 3. Any key with "output" or "review" in the name
+            # Extract structured output from state (guaranteed by response_schema)
             if "code_review_output" in all_state_deltas:
-                structured_output = all_state_deltas["code_review_output"]
+                output = all_state_deltas["code_review_output"]
                 print("Found code_review_output in state")
-            elif "formatted_output" in all_state_deltas:
-                structured_output = all_state_deltas["formatted_output"]
-                print("Found formatted_output in state")
-            else:
-                # Look for any output-like key
-                for key in all_state_deltas:
-                    if ("output" in key.lower() or "review" in key.lower()) and isinstance(
-                        all_state_deltas[key], (dict, list)
-                    ):
-                        structured_output = all_state_deltas[key]
-                        print(f"Found structured output in state key: {key}")
-                        break
 
-            # If we found structured output, use it (this is the source of truth)
-            if structured_output:
-                if isinstance(structured_output, dict):
-                    # Validate it has expected structure
-                    if "overall_status" in structured_output or "summary" in structured_output:
-                        print("Using structured output from state")
-                        return structured_output
-                    else:
-                        print(f"Structured output missing expected fields: {list(structured_output.keys())}")
-                elif isinstance(structured_output, str):
+                # Handle both dict and JSON string
+                if isinstance(output, dict):
+                    return output
+                elif isinstance(output, str):
                     try:
-                        parsed = json.loads(structured_output)
-                        if isinstance(parsed, dict):
-                            return parsed
-                    except json.JSONDecodeError:
-                        pass
+                        return json.loads(output)
+                    except json.JSONDecodeError as e:
+                        print(f"Failed to parse JSON from code_review_output: {e}")
+                        raise
 
-            # Fallback: Use text response and format it
+            # Fallback: try text content and parse as JSON
             combined_text = "\n".join(all_text_parts).strip()
-
             if combined_text:
-                print(f"Using text response ({len(combined_text)} characters)")
-                # Format the text response into expected structure
-                return {
-                    "summary": combined_text,
-                    "inline_comments": [],
-                    "overall_status": "COMMENT",
-                    "metrics": {
-                        "files_reviewed": 0,
-                        "issues_found": 0,
-                        "critical_issues": 0,
-                        "warnings": 0,
-                        "suggestions": 0,
-                        "style_score": 0.0,
-                    },
-                }
-
-            # Last resort - try to extract anything from the final chunk
-            final_chunk = response_chunks[-1]
-            print("Falling back to final chunk extraction")
-            print(f"Final chunk type: {type(final_chunk)}")
-            print(
-                f"Final chunk attributes: {[attr for attr in dir(final_chunk) if not attr.startswith('_')][:20]}"
-            )
-
-            # Try various extraction methods
-            if isinstance(final_chunk, str):
+                print(
+                    f"Fallback: parsing text response ({len(combined_text)} characters)"
+                )
                 try:
-                    return json.loads(final_chunk)
+                    return json.loads(combined_text)
                 except json.JSONDecodeError:
+                    # Last resort: wrap text in minimal structure
+                    print(
+                        "Warning: Using text as summary (structured output not found)"
+                    )
                     return {
-                        "summary": final_chunk,
+                        "summary": combined_text,
                         "inline_comments": [],
                         "overall_status": "COMMENT",
-                        "metrics": {},
+                        "metrics": {
+                            "files_reviewed": 0,
+                            "issues_found": 0,
+                            "critical_issues": 0,
+                            "warnings": 0,
+                            "suggestions": 0,
+                        },
                     }
-            elif isinstance(final_chunk, dict):
-                return final_chunk
-            else:
-                raise Exception(
-                    f"Failed to extract response from {len(response_chunks)} chunks. "
-                    f"Last chunk type: {type(final_chunk)}"
-                )
+
+            raise Exception(
+                f"No structured output found in {len(response_chunks)} chunks. "
+                f"State keys: {list(all_state_deltas.keys())}"
+            )
 
         except Exception as e:
             last_error = e

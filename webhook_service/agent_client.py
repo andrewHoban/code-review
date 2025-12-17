@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class AgentEngineClient:
     """Client for calling the deployed Agent Engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Agent Engine client."""
         vertexai.init(
             project=Config.GCP_PROJECT_ID,
@@ -66,7 +66,7 @@ class AgentEngineClient:
             streaming_complete = threading.Event()
             stream_error: list[Exception | None] = [None]
 
-            def stream_worker():
+            def stream_worker() -> None:
                 """Worker thread to handle streaming."""
                 try:
                     logger.debug("Starting agent stream query")
@@ -119,20 +119,20 @@ class AgentEngineClient:
 
             logger.info(f"Received {len(response_chunks)} chunks from agent")
 
-            # Extract structured output from chunks
-            structured_output = None
+            # Extract structured JSON output from agent state
+            # The agent uses structured output (response_schema) which is stored in state_delta
             all_text_parts = []
             all_state_deltas = {}
 
             for chunk in response_chunks:
-                # Collect text
+                # Collect text (for debugging)
                 if hasattr(chunk, "content") and chunk.content:
                     if hasattr(chunk.content, "parts") and chunk.content.parts:
                         for part in chunk.content.parts:
                             if hasattr(part, "text") and part.text:
                                 all_text_parts.append(part.text)
 
-                # Collect structured data
+                # Collect structured output from state_delta
                 if hasattr(chunk, "actions") and chunk.actions:
                     if (
                         hasattr(chunk.actions, "state_delta")
@@ -140,57 +140,52 @@ class AgentEngineClient:
                     ):
                         all_state_deltas.update(chunk.actions.state_delta)
 
-            # Look for structured output
+            # Extract structured output from state (guaranteed by response_schema)
             if "code_review_output" in all_state_deltas:
-                structured_output = all_state_deltas["code_review_output"]
-            elif "formatted_output" in all_state_deltas:
-                structured_output = all_state_deltas["formatted_output"]
-            else:
-                for key in all_state_deltas:
-                    if (
-                        "output" in key.lower() or "review" in key.lower()
-                    ) and isinstance(all_state_deltas[key], dict | list):
-                        structured_output = all_state_deltas[key]
-                        break
+                output = all_state_deltas["code_review_output"]
+                logger.info("Found code_review_output in state")
 
-            # Use structured output if found
-            if structured_output:
-                if isinstance(structured_output, dict):
-                    if (
-                        "overall_status" in structured_output
-                        or "summary" in structured_output
-                    ):
-                        logger.info("Using structured output from agent state")
-                        return structured_output
-                elif isinstance(structured_output, str):
+                # Handle both dict and JSON string
+                if isinstance(output, dict):
+                    return output
+                elif isinstance(output, str):
                     try:
-                        parsed = json.loads(structured_output)
-                        if isinstance(parsed, dict):
-                            return parsed
-                    except json.JSONDecodeError:
-                        pass
+                        return json.loads(output)
+                    except json.JSONDecodeError as e:
+                        logger.error(
+                            f"Failed to parse JSON from code_review_output: {e}"
+                        )
+                        raise
 
-            # Fallback to text response
+            # Fallback: try text content and parse as JSON
             combined_text = "\n".join(all_text_parts).strip()
             if combined_text:
-                logger.info("Using text response from agent")
-                return {
-                    "summary": combined_text,
-                    "inline_comments": [],
-                    "overall_status": "COMMENT",
-                    "metrics": {
-                        "files_reviewed": 0,
-                        "issues_found": 0,
-                        "critical_issues": 0,
-                        "warnings": 0,
-                        "suggestions": 0,
-                        "style_score": 0.0,
-                    },
-                }
+                logger.warning(
+                    f"Fallback: parsing text response ({len(combined_text)} characters)"
+                )
+                try:
+                    return json.loads(combined_text)
+                except json.JSONDecodeError:
+                    # Last resort: wrap text in minimal structure
+                    logger.warning(
+                        "Using text as summary (structured output not found)"
+                    )
+                    return {
+                        "summary": combined_text,
+                        "inline_comments": [],
+                        "overall_status": "COMMENT",
+                        "metrics": {
+                            "files_reviewed": 0,
+                            "issues_found": 0,
+                            "critical_issues": 0,
+                            "warnings": 0,
+                            "suggestions": 0,
+                        },
+                    }
 
-            # Last resort
             raise Exception(
-                f"Failed to extract response from {len(response_chunks)} chunks"
+                f"No structured output found in {len(response_chunks)} chunks. "
+                f"State keys: {list(all_state_deltas.keys())}"
             )
 
         except Exception as e:

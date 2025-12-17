@@ -14,7 +14,7 @@
 
 """Output schema models for code review agent."""
 
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -41,18 +41,13 @@ class ReviewMetrics(BaseModel):
     critical_issues: int = Field(default=0, description="Critical issues count")
     warnings: int = Field(default=0, description="Warning count")
     suggestions: int = Field(default=0, description="Suggestion count")
-    style_score: float = Field(
-        default=0.0, description="Style compliance score (0-100)"
-    )
 
 
 class CodeReviewOutput(BaseModel):
     """Complete output from code review agent."""
 
-    summary: str = Field(
-        ..., description="Overall review summary in markdown format"
-    )
-    inline_comments: List[InlineComment] = Field(
+    summary: str = Field(..., description="Overall review summary in markdown format")
+    inline_comments: list[InlineComment] = Field(
         default_factory=list, description="Comments for specific lines"
     )
     overall_status: Literal["APPROVED", "NEEDS_CHANGES", "COMMENT"] = Field(

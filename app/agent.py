@@ -22,6 +22,7 @@ from google.adk.agents import Agent
 from google.adk.apps.app import App
 
 from app.config import LANGUAGE_DETECTOR_MODEL, LANGUAGE_DETECTOR_FALLBACK_MODEL
+from app.models.output_schema import CodeReviewOutput
 from app.prompts.static_context import STATIC_REVIEW_CONTEXT
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 
 
 # Single agent that reviews code directly using LLM reasoning
+# Uses structured output via response_schema to guarantee valid JSON
 # Fallback to Llama 4 is configured in app/config.py and handled by retry logic
 root_agent = Agent(
     name="CodeReviewer",
@@ -63,40 +65,39 @@ YOUR TASK:
 1. Read all changed files and their full content
 2. Apply the review principles above to the code
 3. Check for: Correctness, Security, Performance, Design, Test quality
-4. Produce a structured markdown review following the format below
+4. Return a structured JSON response with your findings
 
-OUTPUT FORMAT (markdown):
-
-## Summary
-One sentence overall assessment. Use "LGTM - no significant issues." if code is clean.
-
-## Correctness & Security
-List only HIGH severity issues (expect 0-2 per review).
-Format: **Issue Title** - File:line - Description - How to fix
-If none found: "LGTM"
-
-## Design & Maintainability
-List only MEDIUM severity issues, top 5 by impact.
-Format: **Issue Title** - File:line - Description
-If none found: "LGTM"
-
-## Test Coverage
-Note critical gaps only (auth, payment, data loss scenarios).
-If adequate: "LGTM"
-
-## Issues to Address
-Numbered list combining HIGH and top MEDIUM issues only.
-Skip this section entirely if no issues.
+OUTPUT STRUCTURE:
+- summary: Overall review summary in markdown (use "LGTM - no significant issues." if clean)
+- overall_status: One of ["APPROVED", "NEEDS_CHANGES", "COMMENT"]
+  - APPROVED: No issues or only minor suggestions
+  - NEEDS_CHANGES: Has HIGH severity issues
+  - COMMENT: Has MEDIUM severity issues worth noting
+- inline_comments: Array of specific line comments (empty if no issues)
+  - path: File path
+  - line: Line number
+  - severity: One of ["error", "warning", "info", "suggestion"]
+  - body: Comment in markdown with issue + fix suggestion
+- metrics: Review statistics
+  - files_reviewed: Number of files reviewed
+  - issues_found: Total issues count
+  - critical_issues: HIGH severity count
+  - warnings: MEDIUM severity count
+  - suggestions: LOW severity count
 
 CRITICAL REMINDERS:
 - 60-80% of PRs should mostly pass - be constructive, not harsh
-- Be specific with file:line references and show code snippets for HIGH issues
-- Use "LGTM" liberally when sections are clean
+- Be specific with file:line references in inline_comments
+- Use "APPROVED" liberally when code is clean
 - No praise, no "what went well" sections, no congratulations
 - Focus exclusively on issues that need addressing
-- If everything is acceptable, keep it brief with "LGTM"
 """,
     output_key="code_review_output",
+    output_schema=CodeReviewOutput,  # ADK will automatically configure Gemini's response_schema
+    generate_content_config={
+        "temperature": 0.3,
+        "max_output_tokens": 8192,
+    },
 )
 
 
